@@ -1,0 +1,5 @@
+# SolidWorks Weapon Balancer Requirements
+# Python 3.10+ (64-bit recommended)
+
+# Required for SolidWorks COM automation:
+pywin32>=306
