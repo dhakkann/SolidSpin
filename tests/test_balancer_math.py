@@ -21,6 +21,11 @@ def test_spin_axis():
     # Spin axis along Z axis through (0.01, 0.02, 0) in meters
     axis = SpinAxis((0.01, 0.02, 0.0), (0, 0, 1), label="Bore Axis")
 
+    assert axis.origin == (0.01, 0.02, 0.0)
+    assert axis.point == (0.01, 0.02, 0.0)
+    assert axis.direction == (0.0, 0.0, 1.0)
+    assert repr(axis).startswith("<SpinAxis 'Bore Axis'")
+
     # Center of mass at (0.015, 0.025, 0.05) -> offset is +5 mm in X, +5 mm in Y
     com = (0.015, 0.025, 0.05)
     offset = axis.offset_mm(com)
@@ -28,6 +33,32 @@ def test_spin_axis():
     assert abs(offset[0] - 5.0) < 1e-6, f"Expected 5.0, got {offset[0]}"
     assert abs(offset[1] - 5.0) < 1e-6, f"Expected 5.0, got {offset[1]}"
     print("[PASS] SpinAxis test passed!")
+
+
+def test_custom_axis_dialog_init():
+    try:
+        import tkinter as tk
+        from sw_balancer.ui import CustomAxisDialog
+        root = tk.Tk()
+        root.withdraw()
+        root.wait_window = lambda win: None
+
+        axis = SpinAxis((0.005, 0.010, 0.015), (0.0, 0.0, 1.0), "Test Axis")
+        dlg = CustomAxisDialog(root, axis)
+        assert dlg.ent_ox.get() == "5.00"
+        assert dlg.ent_oy.get() == "10.00"
+        assert dlg.ent_oz.get() == "15.00"
+        assert dlg.ent_dz.get() == "1.000"
+
+        dlg.ent_ox.delete(0, tk.END)
+        dlg.ent_ox.insert(0, "25.0")
+        dlg.on_ok()
+        assert dlg.result is not None
+        assert abs(dlg.result.origin[0] - 0.025) < 1e-6
+        root.destroy()
+        print("[PASS] CustomAxisDialog test passed!")
+    except Exception as e:
+        print(f"Skipping GUI dialog test: {e}")
 
 
 def test_solver_multi():

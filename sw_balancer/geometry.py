@@ -77,6 +77,32 @@ class SpinAxis:
         self.n_name = _axis_name(self.n, "axis")[1]
         self.label = label
 
+    @property
+    def origin(self):
+        """Anchor point / origin of the spin axis in meters (tuple of 3 floats)."""
+        return self.p
+
+    @origin.setter
+    def origin(self, point):
+        self.p = _v(point)
+
+    @property
+    def point(self):
+        """Alias for origin."""
+        return self.p
+
+    @property
+    def direction(self):
+        """Unit vector direction of the spin axis (tuple of 3 floats)."""
+        return self.n
+
+    @direction.setter
+    def direction(self, dir_vec):
+        self.n = _unit(_v(dir_vec))
+
+    def __repr__(self):
+        return f"<SpinAxis '{self.label}' origin={self.p} direction={self.n}>"
+
     def offset_mm(self, com):
         """In-plane offset of Center of Mass from the axis, (a, b) in mm."""
         d = _sub(com, self.p)

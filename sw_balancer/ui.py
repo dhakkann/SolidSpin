@@ -52,12 +52,13 @@ class CustomAxisDialog(tk.Toplevel):
         init_origin = (0.0, 0.0, 0.0)
         init_dir = (0.0, 0.0, 1.0)
         if current_axis is not None:
+            orig = getattr(current_axis, "origin", getattr(current_axis, "p", (0.0, 0.0, 0.0)))
             init_origin = (
-                current_axis.origin[0] * M_TO_MM,
-                current_axis.origin[1] * M_TO_MM,
-                current_axis.origin[2] * M_TO_MM
+                orig[0] * M_TO_MM,
+                orig[1] * M_TO_MM,
+                orig[2] * M_TO_MM
             )
-            init_dir = current_axis.direction
+            init_dir = getattr(current_axis, "direction", getattr(current_axis, "n", (0.0, 0.0, 1.0)))
 
         pad = {"padx": 10, "pady": 4}
 
@@ -400,7 +401,8 @@ class BalancerApp(tk.Tk):
                 self.var_axis_choice.set(dlg.result.label)
             else:
                 if self.spin_axis:
-                    self.var_axis_choice.set(self.spin_axis.label)
+                    matched = next((opt for opt in self.axis_options if self.spin_axis.label in opt or opt in self.spin_axis.label), self.spin_axis.label)
+                    self.var_axis_choice.set(matched)
 
     def on_auto_discover_dimensions(self, silent=False):
         """Auto-discover all driving sketch dimensions directly from active SolidWorks model."""

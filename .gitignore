@@ -3,6 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Saved state / temporary
+saved_dimensions.json
+
 # Virtual environments
 venv/
 env/
