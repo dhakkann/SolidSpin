@@ -19,6 +19,8 @@ def test_weapon_geometry_option_b():
     assert abs(geom.bite_h - 12.0) < 1e-4  # 72.0 - 60.0 (Reinforced bite clearance)
     assert geom.gullet_depth == 47.0  # 72.0 - 25.0
     assert geom.min_neck_width_mm > 38.0  # Reinforced neck cross-section (39.8 mm)
+    assert geom.rake_angle_deg < 0.0  # Negative rake angle for compressive impact loading
+    assert geom.wedge_angle_deg > 90.0  # Obtuse included wedge angle prevents tip chipping
 
     # Test bearing spacer creation
     spacer = geom.build_bearing_spacer(bearing_width=7.0, shaft_dia=8.0)

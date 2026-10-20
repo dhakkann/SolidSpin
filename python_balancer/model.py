@@ -127,6 +127,70 @@ class WeaponGeometry:
                 return 2.0 * (cx_arc - math.sqrt(disc))
         return 2.0 * p_tr[0]
 
+    @property
+    def rake_angle_deg(self) -> float:
+        """
+        Combat Tooth Rake Angle (gamma) in degrees at the impact tip (p_tr).
+        Reference: RioBotz Combot Tutorial & Ramos & Meggiolaro (2012).
+        - Negative rake (gamma < 0): Striking face slopes backward away from cut,
+          placing the tooth root in pure compression rather than tensile bending.
+        - Positive rake (gamma > 0): Striking face hooks forward (sharp, chip-prone).
+        - Neutral rake (gamma = 0): Striking face is purely radial.
+        """
+        half_ang = math.radians(self.angle_tooth / 2.0)
+        theta_tr = math.pi / 2.0 - half_ang
+        p_tr = (self.r_tooth * math.cos(theta_tr), self.r_tooth * math.sin(theta_tr))
+
+        ang_bot_half = math.radians(self.angle_counter / 2.0)
+        theta_br = -math.pi / 2.0 + ang_bot_half
+        p_br = (self.r_counter * math.cos(theta_br), self.r_counter * math.sin(theta_br))
+
+        mx = (p_tr[0] + p_br[0]) / 2.0
+        my = (p_tr[1] + p_br[1]) / 2.0
+        chord = math.hypot(p_br[0] - p_tr[0], p_br[1] - p_tr[1])
+        if chord >= 2.0 * self.r_waist:
+            return 0.0
+
+        h = math.sqrt(self.r_waist ** 2 - (chord / 2.0) ** 2)
+        ux = (p_br[0] - p_tr[0]) / chord
+        uy = (p_br[1] - p_tr[1]) / chord
+        nx, ny = -uy, ux
+        if nx < 0:
+            nx, ny = -nx, -ny
+
+        cx_arc = mx + h * nx
+        cy_arc = my + h * ny
+
+        # Tangent vector to gullet waist arc at p_tr pointing downward/inward
+        rx = p_tr[0] - cx_arc
+        ry = p_tr[1] - cy_arc
+        r_norm = math.hypot(rx, ry)
+        unx, uny = rx / r_norm, ry / r_norm
+        t_face_x, t_face_y = uny, -unx
+        if t_face_y > 0:
+            t_face_x, t_face_y = -t_face_x, -t_face_y
+
+        # Inward radial vector at p_tr
+        inward_r_x = -p_tr[0] / self.r_tooth
+        inward_r_y = -p_tr[1] / self.r_tooth
+
+        # Tangential velocity vector for CCW rotation: (-sin(theta), cos(theta))
+        v_dir_x = -p_tr[1] / self.r_tooth
+        v_dir_y = p_tr[0] / self.r_tooth
+
+        dot_face_r = t_face_x * inward_r_x + t_face_y * inward_r_y
+        ang_rad = math.acos(max(-1.0, min(1.0, dot_face_r)))
+        ang_deg = math.degrees(ang_rad)
+
+        dot_v = t_face_x * v_dir_x + t_face_y * v_dir_y
+        # Negative rake: face slopes backward away from impact direction into the body
+        return -ang_deg
+
+    @property
+    def wedge_angle_deg(self) -> float:
+        """Included solid wedge angle of the tooth tip in degrees."""
+        return 90.0 - self.rake_angle_deg
+
     # --------------------------------------------------------------------------
     # GEOMETRIC CONSTRUCTION
     # --------------------------------------------------------------------------
@@ -261,6 +325,8 @@ class WeaponGeometry:
             "r_tooth_mm": self.r_tooth,
             "tooth_tip_chord_mm": self.tooth_tip_chord,
             "min_neck_width_mm": self.min_neck_width_mm,
+            "rake_angle_deg": self.rake_angle_deg,
+            "wedge_angle_deg": self.wedge_angle_deg,
             "gullet_depth_mm": self.gullet_depth,
             "fillet_r_mm": self.fillet_r,
             "r_counter_mm": self.r_counter,
