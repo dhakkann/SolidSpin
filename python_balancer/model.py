@@ -27,20 +27,20 @@ class WeaponGeometry:
     - Hub Option B: Straight through-bore for dual pressed bearings and floating spacer sleeve
     - Physical Constraints: Max R = 63.0 mm, Target Mass = 1.500 kg, 2 kJ Energy Target
     """
-    # 1. Tooth & Gullet Geometry (Max R = 63.0 mm envelope, Reinforced Neck)
-    r_tooth: float = 63.0         # mm (outer impact tooth radius, max envelope)
+    # 1. Tooth & Gullet Geometry (Max R = 72.0 mm / Ø144 mm envelope, Reinforced Neck)
+    r_tooth: float = 72.0         # mm (outer impact tooth radius, Ø144 mm envelope)
     angle_tooth: float = 40.0     # deg (tooth tip engagement arc, wide impact face)
-    r_waist: float = 130.0        # mm (gullet transition arc radius, reinforced waist)
+    r_waist: float = 150.0        # mm (gullet transition arc radius, reinforced waist)
     dia_relief: float = 50.0      # mm (central hub / gullet root diameter)
     fillet_r: float = 18.0        # mm (gullet root stress-relief fillet radius)
 
     # 2. Bite Clearance & Counterweight (Reinforced stem balancing)
-    r_counter: float = 52.0       # mm (counterweight lobe radius, physical bite h = 11.0 mm)
-    angle_counter: float = 91.6   # deg (counterweight arc angle)
+    r_counter: float = 60.0       # mm (counterweight lobe radius, physical bite h = 12.0 mm)
+    angle_counter: float = 83.8   # deg (counterweight arc angle)
 
     # 3. Spin Axis & Shaft Bore (Option B: Straight Through-Bore)
     dia_bore: float = 22.0        # mm (straight through-bore for 22mm OD bearings e.g. 608)
-    thickness: float = 37.83      # mm (sets mass to exactly 1.500 kg for reinforced R=63mm profile)
+    thickness: float = 30.61      # mm (sets mass to exactly 1.500 kg for reinforced R=72mm profile)
     density: float = 0.00785      # g/mm³ (7.85 g/cm³ for Hardox 450 / 500)
 
     # --------------------------------------------------------------------------

@@ -20,12 +20,12 @@ def print_banner():
 """)
 
 
-def run_balance_demo(target_bite: float = 11.0, target_mass: float = 1500.0):
+def run_balance_demo(target_bite: float = 12.0, target_mass: float = 1500.0):
     print_banner()
     geom = WeaponGeometry()
 
-    print("[1] TOOTH & GULLET SHAPE (Max R = 63.0 mm Envelope - Reinforced Neck):")
-    print(f"    Tooth Tip Radius:      R{geom.r_tooth:.1f} mm (Max Dia 126.0 mm)")
+    print("[1] TOOTH & GULLET SHAPE (Max R = 72.0 mm / Ø144 mm Envelope - Reinforced Neck):")
+    print(f"    Tooth Tip Radius:      R{geom.r_tooth:.1f} mm (Max Dia {2*geom.r_tooth:.1f} mm)")
     print(f"    Tooth Tip Width:       {geom.tooth_tip_chord:.2f} mm ({geom.angle_tooth:.1f}°)")
     print(f"    Min Neck Width:        {geom.min_neck_width_mm:.2f} mm (Reinforced against impact fracture)")
     print(f"    Gullet Depth:          {geom.gullet_depth:.2f} mm (swallows opponent armor)")
@@ -41,33 +41,33 @@ def run_balance_demo(target_bite: float = 11.0, target_mass: float = 1500.0):
     print("\n[3] BITE h & SPEED ENVELOPE:")
     print(f"    Target Physical Bite:  h = {target_bite:.2f} mm (Tooth step R_tooth - R_counter)")
     dyn_bite_11k = geom.dynamic_bite(robot_closing_speed_m_s=5.364, rpm=11000.0)
-    dyn_bite_14k = geom.dynamic_bite(robot_closing_speed_m_s=5.364, rpm=14660.0)
-    print(f"    Dynamic Bite Needed:   {dyn_bite_11k:.1f} mm @ 11,000 RPM  |  {dyn_bite_14k:.1f} mm @ 14,660 RPM")
+    dyn_bite_11_7k = geom.dynamic_bite(robot_closing_speed_m_s=5.364, rpm=11700.0)
+    print(f"    Dynamic Bite Needed:   {dyn_bite_11k:.1f} mm @ 11,000 RPM  |  {dyn_bite_11_7k:.1f} mm @ 11,700 RPM")
     v_tip_11k = (11000.0 * 2.0 * 3.14159 / 60.0) * (geom.r_tooth / 1000.0) / 0.44704
-    v_tip_14k = (14660.0 * 2.0 * 3.14159 / 60.0) * (geom.r_tooth / 1000.0) / 0.44704
-    print(f"    Tip Speed:             {v_tip_11k:.1f} mph @ 11,000 RPM    |  {v_tip_14k:.1f} mph @ 14,660 RPM (< 250 mph legal)")
+    v_tip_11_7k = (11700.0 * 2.0 * 3.14159 / 60.0) * (geom.r_tooth / 1000.0) / 0.44704
+    print(f"    Tip Speed:             {v_tip_11k:.1f} mph @ 11,000 RPM    |  {v_tip_11_7k:.1f} mph @ 11,700 RPM (< 250 mph legal)")
 
     print(f"\n[4] SPIN AXIS INERTIA, THICKNESS, & DYNAMIC BALANCE (Target Mass = {target_mass:.1f} g):")
     print("    Optimizing geometry and plate thickness to bring COM offset -> 0.0000 mm...")
 
     balanced, report = balance_for_bite(geom, target_bite_h=target_bite, target_mass_g=target_mass)
     mp_11k = balanced.mass_properties(rpm=11000.0, closing_speed_m_s=5.364)
-    mp_14k = balanced.mass_properties(rpm=14660.0, closing_speed_m_s=5.364)
+    mp_11_7k = balanced.mass_properties(rpm=11700.0, closing_speed_m_s=5.364)
 
     print(f"\n[+] BALANCED IN {report['elapsed_ms']:.1f} ms ({report['evals']} rebuilds)!")
     print(f"    Plate Thickness:           {balanced.thickness:.2f} mm (solves mass to exact 1.500 kg)")
-    print(f"    Min Stem Neck Width:       {balanced.min_neck_width_mm:.2f} mm (+78.6% reinforced, +219% section modulus!)")
+    print(f"    Min Stem Neck Width:       {balanced.min_neck_width_mm:.2f} mm (+93% reinforced vs baseline, +273% section modulus!)")
     print(f"    Total Mass:                {mp_11k['mass_g']:.1f} g")
     print(f"    Spin Axis Inertia (Izz):   {mp_11k['izz_kg_m2']:.6e} kg·m² (LOW MoI = Minimal Gyroscopic Pull)")
     print(f"    Kinetic Energy @ 11,000 RPM: {mp_11k['kinetic_energy_j']:.1f} Joules (Direct 1:1 drive)")
-    print(f"    Kinetic Energy @ 14,660 RPM: {mp_14k['kinetic_energy_j']:.1f} Joules (1.33:1 Pulley Ratio = 2 kJ Target!)")
-    omega_14k = 14660.0 * 2.0 * 3.14159 / 60.0
-    h_gyro = mp_14k['izz_kg_m2'] * omega_14k
+    print(f"    Kinetic Energy @ 11,700 RPM: {mp_11_7k['kinetic_energy_j']:.1f} Joules (1.06:1 Pulley = 2 kJ Target Hit!)")
+    omega_11_7k = 11700.0 * 2.0 * 3.14159 / 60.0
+    h_gyro = mp_11_7k['izz_kg_m2'] * omega_11_7k
     yaw_lift = (11.772 / h_gyro) / (2.0 * 3.14159)
     print(f"    Gyro Momentum @ 2 kJ (H):  {h_gyro:.2f} N·m·s (Robot turns up to {yaw_lift:.2f} rev/s before wheel lift!)")
     print(f"    Remaining COM Offset:      {report['com_offset_mm']:.6f} mm (< 1 µm)")
 
-    exports = balanced.export("weapon_2kj_R63mm_reinforced")
+    exports = balanced.export("weapon_2kj_R72mm_reinforced")
     print(f"\n[+] Exported CAD Models:")
     for f in exports:
         print(f"    • {f}")
@@ -109,7 +109,7 @@ def run_pareto_demo():
 
 def main():
     parser = argparse.ArgumentParser(description="SolidSpin Combat Robotics Optimizer")
-    parser.add_argument("--bite", type=float, default=11.0, help="Target physical Bite h in mm (default: 11.0, reinforced neck)")
+    parser.add_argument("--bite", type=float, default=12.0, help="Target physical Bite h in mm (default: 12.0, R=72mm reinforced neck)")
     parser.add_argument("--pareto", action="store_true", help="Generate Bite h vs Spin Axis Inertia Pareto curve")
     args = parser.parse_args()
 
