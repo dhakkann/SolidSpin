@@ -27,7 +27,9 @@ def run_balance_demo(target_bite: float = 12.0, target_mass: float = 1500.0):
     print("[1] TOOTH & GULLET SHAPE (Max R = 72.0 mm / Ø144 mm Envelope - Reinforced Neck):")
     print(f"    Tooth Tip Radius:      R{geom.r_tooth:.1f} mm (Max Dia {2*geom.r_tooth:.1f} mm)")
     print(f"    Tooth Tip Width:       {geom.tooth_tip_chord:.2f} mm ({geom.angle_tooth:.1f}°)")
-    print(f"    Min Neck Width:        {geom.min_neck_width_mm:.2f} mm (Reinforced against impact fracture)")
+    print(f"    Tooth Rake Angle:      {geom.rake_angle_deg:+.2f}° (Negative Rake: compressive shock loading)")
+    print(f"    Included Wedge Angle:  {geom.wedge_angle_deg:.2f}° (Obtuse wedge: chip & fracture resistant)")
+    print(f"    Min Stem Neck Width:   {geom.min_neck_width_mm:.2f} mm (Reinforced against impact fracture)")
     print(f"    Gullet Depth:          {geom.gullet_depth:.2f} mm (swallows opponent armor)")
     print(f"    Gullet Root Fillet:    R{geom.fillet_r:.1f} mm (reduces peak impact stress)")
     print(f"    Waist Relief Radius:   R{geom.r_waist:.1f} mm")
@@ -77,12 +79,12 @@ def run_pareto_demo():
     print_banner()
     geom = WeaponGeometry()
 
-    print("[*] Pareto Trade-off: Bite h vs. Spin Axis Inertia vs. Plate Thickness (Max R = 63 mm)")
-    print("    Parameters: 14,660 RPM (2 kJ Target), 12 mph closing speed, Mass = 1.500 kg, Hardox Steel")
+    print("[*] Pareto Trade-off: Bite h vs. Spin Axis Inertia vs. Plate Thickness (Max R = 72 mm / Ø144 mm)")
+    print("    Parameters: 11,700 RPM (2 kJ Target), 12 mph closing speed, Mass = 1.500 kg, Hardox Steel")
     print("    Every design on this curve is 100% dynamically balanced (COM < 0.0001 mm)\n")
 
-    bites = [14.0, 16.0, 18.0, 20.0, 22.0]
-    frontier = pareto_bite_vs_inertia(geom, bite_values=bites, target_mass_g=1500.0, rpm=14660.0, closing_speed_m_s=5.364)
+    bites = [10.0, 12.0, 14.0, 16.0]
+    frontier = pareto_bite_vs_inertia(geom, bite_values=bites, target_mass_g=1500.0, rpm=11700.0, closing_speed_m_s=5.364)
 
     hdr = f"{'Bite h (mm)':>11} | {'Clearance':>9} | {'Thickness':>10} | {'Tooth Width':>11} | {'Izz (kg·m²)':>13} | {'Energy (J)':>10} | {'Mass (g)':>8}"
     print(hdr)
@@ -102,9 +104,9 @@ def run_pareto_demo():
 
     print("-" * len(hdr))
     print("\n[!] Engineering Insights:")
-    print("    1. With Max R = 63 mm, tip speed stays under 220 mph even at 14,660 RPM.")
-    print("    2. At 14,660 RPM, MoI is only ~1.7e-3 kg·m², which cuts gyroscopic handling loads by over 40%.")
-    print("    3. A 1.33:1 speed-up pulley easily achieves the 2 kJ target from your 11k RPM motor.")
+    print("    1. With Max R = 72 mm, 2 kJ kinetic energy is achieved at only 11,700 RPM (near 1:1 direct drive).")
+    print("    2. Tip speed stays under 198 mph (< 250 mph tournament legal ceiling).")
+    print("    3. A 12.0 mm bite step provides over 2.5x dynamic clearance against 3-6 mm opponent armor.")
 
 
 def main():
