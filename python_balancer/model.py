@@ -25,21 +25,22 @@ class WeaponGeometry:
     - Bite h: governed by tooth radial drop relative to counterweight (r_counter)
     - Spin Axis Inertia (Izz): governed by overall mass distribution about shaft bore
     - Hub Option B: Straight through-bore for dual pressed bearings and floating spacer sleeve
+    - Physical Constraints: Max R = 63.0 mm, Target Mass = 1.500 kg, 2 kJ Energy Target
     """
-    # 1. Tooth & Gullet Geometry (2 kJ / <250 mph baseline)
-    r_tooth: float = 97.0         # mm (outer impact tooth radius, <= 250 mph @ 11k RPM)
+    # 1. Tooth & Gullet Geometry (Max R = 63.0 mm envelope)
+    r_tooth: float = 63.0         # mm (outer impact tooth radius, max envelope)
     angle_tooth: float = 38.0     # deg (tooth tip engagement arc)
-    r_waist: float = 120.0        # mm (gullet transition arc radius)
+    r_waist: float = 80.0         # mm (gullet transition arc radius)
     dia_relief: float = 50.0      # mm (central hub / gullet root diameter)
-    fillet_r: float = 18.0        # mm (gullet root stress-relief fillet radius)
+    fillet_r: float = 15.0        # mm (gullet root stress-relief fillet radius)
 
-    # 2. Bite Clearance & Counterweight (12 mph single-tooth bite clearance)
-    r_counter: float = 67.7       # mm (counterweight lobe radius, sets tooth step h = 29.3 mm)
+    # 2. Bite Clearance & Counterweight
+    r_counter: float = 45.0       # mm (counterweight lobe radius, sets tooth step h = 18.0 mm)
     angle_counter: float = 100.0  # deg (counterweight arc angle)
 
     # 3. Spin Axis & Shaft Bore (Option B: Straight Through-Bore)
     dia_bore: float = 22.0        # mm (straight through-bore for 22mm OD bearings e.g. 608)
-    thickness: float = 23.16      # mm (sets mass to exactly 1.500 kg in Hardox/Steel)
+    thickness: float = 48.67      # mm (sets mass to exactly 1.500 kg for R=63mm profile)
     density: float = 0.00785      # g/mm³ (7.85 g/cm³ for Hardox 450 / 500)
 
     # --------------------------------------------------------------------------

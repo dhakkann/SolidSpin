@@ -93,7 +93,7 @@ def pareto_bite_vs_inertia(
     Every point on this curve is 100% dynamically balanced.
     """
     if bite_values is None:
-        bite_values = [20.0, 23.0, 26.0, 29.3, 32.0, 35.0]
+        bite_values = [14.0, 16.0, 18.0, 20.0, 22.0, 24.0]
 
     frontier = []
 
