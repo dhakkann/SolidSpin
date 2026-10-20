@@ -8,9 +8,10 @@ Based on the numerical optimization concepts of the ARCHMASTER Fusion 360 balanc
 
 ## Key Features
 
-- **⚡ Instant Connection (< 0.01s):** Directly attaches to active SolidWorks documents with zero feature-tree scanning latency.
-- **🖥️ Modern 2-Column Desktop GUI:** Controls and dimension management on the left; full-height, dedicated real-time solve logs and telemetry on the right.
-- **🎯 Targeted Dimension Management:** Add dimensions by name (e.g. `OuterRadius@Sketch1`, `ToothAngle`), pick directly from CAD with multi-selection support, and remove with one click.
+- **⚡ Instant Connection (< 0.01s):** Directly attaches to active SolidWorks documents.
+- **🔍 Automatic Sketch Dimension Discovery:** Automatically scans absorbed and unabsorbed sketches via property-first COM traversal (`GetFirstDisplayDimension` / `GetNextDisplayDimension`), enumerating driving dimensions (e.g., `OuterRadius`, `ToothAngle`, `Bore`, `ReliefDia`) with live values and angular units.
+- **🖥️ Modern 2-Column Desktop GUI:** Controls, dimension management, and quick actions on the left; full-height, dedicated real-time solve logs and telemetry on the right.
+- **🎯 Targeted Dimension Management:** Auto-scan dimensions, add custom dimensions by name, pick directly from CAD with multi-selection support, and remove with one click.
 - **💾 Persistent Part Memory:** Remembers configured dimensions for each part file automatically (`saved_dimensions.json`).
 - **📐 Default Z-Axis Spin:** Defaults to Z-Axis through the CAD origin $(0,0,0)$ with instant switching to X/Y or custom coordinates.
 - **🔬 Sensitivity Analysis & Controllability:** Probes in-plane mass movement ($mm/\%$) and evaluates SVD controllability to prevent singular balancing attempts.
@@ -74,7 +75,8 @@ SW Balancer Plugin/
 ├── LICENSE                # MIT License
 ├── README.md              # Project documentation
 ├── tests/
-│   └── test_balancer_math.py # Standalone mathematical solver unit tests
+│   ├── test_balancer_math.py # Standalone mathematical solver unit tests
+│   └── test_sw_bridge.py     # COM bridge property-first dimension discovery tests
 └── sw_balancer/
     ├── geometry.py        # SpinAxis 3D coordinate math & projections
     ├── solver.py          # Gauss-Newton & root-finding optimization algorithms

@@ -34,6 +34,7 @@ from .sw_bridge import (
     SuspendGraphicsContext,
     get_all_solid_bodies,
     get_mass_properties,
+    get_sketch_dimensions,
     find_dimension_by_name,
     get_dimensions_from_selection,
     rebuild_model,
@@ -292,7 +293,10 @@ class BalancerApp(tk.Tk):
         self.btn_add_dim.pack(side=tk.LEFT, padx=(0, 4))
 
         self.btn_pick_cad_dim = ttk.Button(add_bar, text="Pick CAD", command=self.on_pick_cad_dim)
-        self.btn_pick_cad_dim.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_pick_cad_dim.pack(side=tk.LEFT, padx=(0, 4))
+
+        self.btn_auto_discover = ttk.Button(add_bar, text="🔍 Auto-Scan", command=self.on_auto_discover_dimensions)
+        self.btn_auto_discover.pack(side=tk.LEFT, padx=(0, 6))
 
         # Common dimension templates from before
         self.dim_templates = [
@@ -484,8 +488,50 @@ class BalancerApp(tk.Tk):
                 if dim_item:
                     self.dimensions.append(dim_item)
 
+    def on_auto_discover_dimensions(self, silent=False):
+        """Auto-discover all driving sketch dimensions from active SolidWorks model."""
+        if not self.sw_conn.sw_model:
+            if not silent:
+                messagebox.showinfo("Connect First", "Please click 'Connect / Refresh Model' first.")
+            return
+
+        sw_model = self.sw_conn.sw_model
+        try:
+            discovered = get_sketch_dimensions(sw_model)
+            if not discovered:
+                # Fallback to saved JSON cache if auto-enumeration found nothing
+                self._load_saved_dimensions_for_model(sw_model)
+                if not silent:
+                    if self.dimensions:
+                        messagebox.showinfo("Loaded Saved", f"Loaded {len(self.dimensions)} previously saved dimensions.")
+                    else:
+                        messagebox.showwarning(
+                            "No Dimensions Found",
+                            "Could not automatically detect sketch dimensions.\n"
+                            "Please use '+ Add' to specify dimension names (e.g. OuterRadius@Sketch1) or 'Pick CAD'."
+                        )
+                return
+
+            added_cnt = 0
+            for d in discovered:
+                if not any(existing.name == d.name or existing.full_name == d.full_name for existing in self.dimensions):
+                    self.dimensions.append(d)
+                    added_cnt += 1
+
+            self._save_active_dimensions()
+            self._render_dimension_list()
+            self.log(f"Auto-discovered {len(discovered)} sketch dimensions ({added_cnt} new added):")
+            for d in discovered:
+                self.log(f"  • {d.name} [{d.sketch_name}] = {d.to_display_value():.3f} {d.display_unit}")
+            if not silent:
+                messagebox.showinfo("Auto-Discovery Complete", f"Successfully discovered {len(discovered)} sketch dimensions.")
+        except Exception as e:
+            if not silent:
+                messagebox.showerror("Discovery Error", f"Error scanning sketch dimensions: {e}")
+            self.log(f"Dimension discovery error: {e}")
+
     def on_refresh_model(self):
-        """Connect to active SolidWorks part instantly without blind feature tree scanning."""
+        """Connect to active SolidWorks part and auto-discover sketch dimensions."""
         try:
             sw_model = self.sw_conn.refresh_model()
             title = safe_call(sw_model, "GetTitle") or "SolidWorks Document"
@@ -499,9 +545,9 @@ class BalancerApp(tk.Tk):
             self.log(f"Model mass: {mass_g:.2f} g ({body_count_str})")
             self.update_mass_and_com_labels(mass_g, com)
 
-            # Load previously saved dimensions for this part if currently empty
+            # Auto-discover driving sketch dimensions if dimension list is currently empty
             if not self.dimensions:
-                self._load_saved_dimensions_for_model(sw_model)
+                self.on_auto_discover_dimensions(silent=True)
 
             # Re-read live values of all active dimensions
             for d in self.dimensions:
