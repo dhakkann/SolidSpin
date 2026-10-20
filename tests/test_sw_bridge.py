@@ -115,9 +115,9 @@ class MockModel:
 
 
 def test_com_prop_or_call():
-    dim = MockDimension("OuterRadius", "OuterRadius@Sketch1", 0.085)
+    dim = MockDimension("Radius1", "Radius1@Sketch1", 0.085)
     # Test property access
-    assert com_prop_or_call(dim, "Name") == "OuterRadius"
+    assert com_prop_or_call(dim, "Name") == "Radius1"
     assert com_prop_or_call(dim, "SystemValue") == 0.085
     # Test method invocation with args
     dd = MockDisplayDimension(dim)
@@ -127,11 +127,11 @@ def test_com_prop_or_call():
 
 
 def test_get_sketch_dimensions_traversal():
-    # Setup mock hierarchy similar to Optimised Weapon.SLDPRT
+    # Setup mock hierarchy of a CAD part with sketches and extrusions
     dims = [
-        MockDimension("Bore", "Bore@Sketch1", 0.012),
-        MockDimension("ToothAngle", "ToothAngle@Sketch1", 0.785, dim_type=1),
-        MockDimension("OuterRadius", "OuterRadius@Sketch1", 0.090),
+        MockDimension("BoreDia", "BoreDia@Sketch1", 0.012),
+        MockDimension("AngleParam", "AngleParam@Sketch1", 0.785, dim_type=1),
+        MockDimension("Radius1", "Radius1@Sketch1", 0.090),
         MockDimension("ReferenceDim", "Ref@Sketch1", 0.050, is_driven=True),  # Should be skipped!
     ]
     sketch = MockSketchFeature("Sketch1", dims)
@@ -143,12 +143,12 @@ def test_get_sketch_dimensions_traversal():
     # 3 driving dimensions should be found, ReferenceDim skipped
     assert len(discovered) == 3
     names = [d.name for d in discovered]
-    assert "Bore@Sketch1" in names
-    assert "ToothAngle@Sketch1" in names
-    assert "OuterRadius@Sketch1" in names
+    assert "BoreDia@Sketch1" in names
+    assert "AngleParam@Sketch1" in names
+    assert "Radius1@Sketch1" in names
     assert not any("Ref" in n for n in names)
 
-    # Verify ToothAngle is marked as angular
-    tooth_dim = next(d for d in discovered if "ToothAngle" in d.name)
-    assert tooth_dim.is_angular is True
-    assert tooth_dim.display_unit == "deg"
+    # Verify AngleParam is marked as angular
+    angle_dim = next(d for d in discovered if "AngleParam" in d.name)
+    assert angle_dim.is_angular is True
+    assert angle_dim.display_unit == "deg"

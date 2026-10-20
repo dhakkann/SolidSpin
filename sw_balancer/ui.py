@@ -2,17 +2,14 @@
 Tkinter User Interface for SolidWorks Asymmetric Weapon Balancer.
 Provides:
 - 2-Column Desktop layout (Controls on Left, Live Logs on Right)
-- Instant SolidWorks connection (0.01s, zero slow feature tree traversal)
+- Instant SolidWorks connection with automatic sketch dimension discovery
 - Default Z-Axis through Origin spin axis with quick X/Y/Custom switches
-- Targeted Dimension Management (+ Add Dimension, Pick From CAD, Delete ✕)
-- Persistent dimension memory per CAD part
+- Automatic Driving Dimension Discovery directly from CAD sketches
 - Dimension sensitivity analysis & real-time controllability check
 - Responsive optimization solver with Cancel and Undo support
 """
 
-import json
 import math
-import os
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 
@@ -35,43 +32,10 @@ from .sw_bridge import (
     get_all_solid_bodies,
     get_mass_properties,
     get_sketch_dimensions,
-    find_dimension_by_name,
-    get_dimensions_from_selection,
     rebuild_model,
     make_evaluator,
     safe_call,
 )
-
-SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "saved_dimensions.json")
-
-
-def load_saved_dim_names(part_title):
-    """Load previously saved dimension names for a specific part."""
-    try:
-        if os.path.exists(SETTINGS_FILE):
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data.get(part_title, [])
-    except Exception:
-        pass
-    return []
-
-
-def save_dim_names(part_title, dim_names):
-    """Persist dimension names for a specific part so they reload across sessions."""
-    try:
-        data = {}
-        if os.path.exists(SETTINGS_FILE):
-            try:
-                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except Exception:
-                data = {}
-        data[part_title] = dim_names
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
 
 
 class CustomAxisDialog(tk.Toplevel):
@@ -280,49 +244,23 @@ class BalancerApp(tk.Tk):
         dims_frame = ttk.LabelFrame(left_col, text="2. Balancing Dimensions", padding=10)
         dims_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
-        # Quick-add bar with Quick Templates
-        add_bar = ttk.Frame(dims_frame)
-        add_bar.pack(fill=tk.X, pady=(0, 6))
+        # Top toolbar with Re-Scan action and count summary
+        dim_bar = ttk.Frame(dims_frame)
+        dim_bar.pack(fill=tk.X, pady=(0, 6))
 
-        ttk.Label(add_bar, text="Name:", font=("Segoe UI", 9, "bold")).pack(side=tk.LEFT, padx=(0, 4))
-        self.entry_custom_dim = ttk.Entry(add_bar, width=18)
-        self.entry_custom_dim.pack(side=tk.LEFT, padx=(0, 4))
-        self.entry_custom_dim.bind("<Return>", lambda e: self.on_add_custom_dim())
-
-        self.btn_add_dim = ttk.Button(add_bar, text="+ Add", command=self.on_add_custom_dim)
-        self.btn_add_dim.pack(side=tk.LEFT, padx=(0, 4))
-
-        self.btn_pick_cad_dim = ttk.Button(add_bar, text="Pick CAD", command=self.on_pick_cad_dim)
-        self.btn_pick_cad_dim.pack(side=tk.LEFT, padx=(0, 4))
-
-        self.btn_auto_discover = ttk.Button(add_bar, text="🔍 Auto-Scan", command=self.on_auto_discover_dimensions)
-        self.btn_auto_discover.pack(side=tk.LEFT, padx=(0, 6))
-
-        # Common dimension templates from before
-        self.dim_templates = [
-            "Quick Templates...",
-            "OuterRadius@Sketch1",
-            "ToothAngle@Sketch1",
-            "ToothAngle",
-            "ToothWidth@Sketch1",
-            "ToothDepth@Sketch1",
-            "D1@Boss-Extrude1",
-            "D1@Fillet1",
-            "Bore@Sketch1",
-            "InnerRadius@Sketch1",
-            "D1@Sketch1",
-            "D2@Sketch1"
-        ]
-        self.var_template = tk.StringVar(value=self.dim_templates[0])
-        self.combo_template = ttk.Combobox(
-            add_bar,
-            textvariable=self.var_template,
-            values=self.dim_templates,
-            state="readonly",
-            width=18
+        self.btn_auto_discover = ttk.Button(
+            dim_bar,
+            text="🔄 Re-Scan CAD Dimensions",
+            command=self.on_auto_discover_dimensions
         )
-        self.combo_template.pack(side=tk.LEFT)
-        self.combo_template.bind("<<ComboboxSelected>>", self.on_template_selected)
+        self.btn_auto_discover.pack(side=tk.LEFT, padx=(0, 8))
+
+        self.lbl_dim_count = ttk.Label(
+            dim_bar,
+            text="Auto-detected sketch dimensions",
+            foreground="#4a5568"
+        )
+        self.lbl_dim_count.pack(side=tk.LEFT)
 
         # Dimension List Box with Scrollbar
         list_container = ttk.Frame(dims_frame)
@@ -447,13 +385,6 @@ class BalancerApp(tk.Tk):
         if self.analysis_cache:
             self.update_controllability_check()
 
-    def on_template_selected(self, event=None):
-        choice = self.var_template.get()
-        if choice and choice != "Quick Templates...":
-            self.entry_custom_dim.delete(0, tk.END)
-            self.entry_custom_dim.insert(0, choice)
-            self.var_template.set("Quick Templates...")
-
     def on_axis_combobox_selected(self, event=None):
         choice = self.var_axis_choice.get()
         if "Z-Axis" in choice:
@@ -471,25 +402,8 @@ class BalancerApp(tk.Tk):
                 if self.spin_axis:
                     self.var_axis_choice.set(self.spin_axis.label)
 
-    def _save_active_dimensions(self):
-        title = safe_call(self.sw_conn.sw_model, "GetTitle") if self.sw_conn.sw_model else None
-        if title:
-            dim_names = [d.full_name or d.name for d in self.dimensions]
-            save_dim_names(title, dim_names)
-
-    def _load_saved_dimensions_for_model(self, sw_model):
-        title = safe_call(sw_model, "GetTitle")
-        if not title:
-            return
-        saved = load_saved_dim_names(title)
-        for name in saved:
-            if not any(d.name == name or d.full_name == name for d in self.dimensions):
-                dim_item = find_dimension_by_name(sw_model, name)
-                if dim_item:
-                    self.dimensions.append(dim_item)
-
     def on_auto_discover_dimensions(self, silent=False):
-        """Auto-discover all driving sketch dimensions from active SolidWorks model."""
+        """Auto-discover all driving sketch dimensions directly from active SolidWorks model."""
         if not self.sw_conn.sw_model:
             if not silent:
                 messagebox.showinfo("Connect First", "Please click 'Connect / Refresh Model' first.")
@@ -498,40 +412,25 @@ class BalancerApp(tk.Tk):
         sw_model = self.sw_conn.sw_model
         try:
             discovered = get_sketch_dimensions(sw_model)
-            if not discovered:
-                # Fallback to saved JSON cache if auto-enumeration found nothing
-                self._load_saved_dimensions_for_model(sw_model)
-                if not silent:
-                    if self.dimensions:
-                        messagebox.showinfo("Loaded Saved", f"Loaded {len(self.dimensions)} previously saved dimensions.")
-                    else:
-                        messagebox.showwarning(
-                            "No Dimensions Found",
-                            "Could not automatically detect sketch dimensions.\n"
-                            "Please use '+ Add' to specify dimension names (e.g. OuterRadius@Sketch1) or 'Pick CAD'."
-                        )
-                return
-
-            added_cnt = 0
-            for d in discovered:
-                if not any(existing.name == d.name or existing.full_name == d.full_name for existing in self.dimensions):
-                    self.dimensions.append(d)
-                    added_cnt += 1
-
-            self._save_active_dimensions()
+            self.dimensions = discovered
             self._render_dimension_list()
-            self.log(f"Auto-discovered {len(discovered)} sketch dimensions ({added_cnt} new added):")
+            count = len(discovered)
+            if hasattr(self, "lbl_dim_count"):
+                self.lbl_dim_count.config(text=f"Auto-detected {count} driving dimensions")
+            self.log(f"\nAuto-discovered {count} driving sketch dimensions from CAD model:")
             for d in discovered:
                 self.log(f"  • {d.name} [{d.sketch_name}] = {d.to_display_value():.3f} {d.display_unit}")
-            if not silent:
-                messagebox.showinfo("Auto-Discovery Complete", f"Successfully discovered {len(discovered)} sketch dimensions.")
+            if count == 0:
+                self.log("No driving sketch dimensions found. Ensure your CAD model contains fully/under-defined driving dimensions.")
+            elif not silent:
+                messagebox.showinfo("Auto-Discovery Complete", f"Successfully auto-discovered {count} driving sketch dimensions.")
         except Exception as e:
             if not silent:
                 messagebox.showerror("Discovery Error", f"Error scanning sketch dimensions: {e}")
             self.log(f"Dimension discovery error: {e}")
 
     def on_refresh_model(self):
-        """Connect to active SolidWorks part and auto-discover sketch dimensions."""
+        """Connect to active SolidWorks model and auto-discover sketch dimensions."""
         try:
             sw_model = self.sw_conn.refresh_model()
             title = safe_call(sw_model, "GetTitle") or "SolidWorks Document"
@@ -545,22 +444,8 @@ class BalancerApp(tk.Tk):
             self.log(f"Model mass: {mass_g:.2f} g ({body_count_str})")
             self.update_mass_and_com_labels(mass_g, com)
 
-            # Auto-discover driving sketch dimensions if dimension list is currently empty
-            if not self.dimensions:
-                self.on_auto_discover_dimensions(silent=True)
-
-            # Re-read live values of all active dimensions
-            for d in self.dimensions:
-                d.get_current_value()
-
-            self._render_dimension_list()
-
-            if self.dimensions:
-                self.log(f"Loaded {len(self.dimensions)} active dimensions:")
-                for d in self.dimensions:
-                    self.log(f"  • {d.name} = {d.to_display_value():.3f} {d.display_unit}")
-            else:
-                self.log("Ready. Add dimensions to balance using the field above or 'Pick From CAD Selection'.")
+            # Auto-discover driving sketch dimensions
+            self.on_auto_discover_dimensions(silent=True)
 
         except Exception as e:
             import traceback
@@ -568,66 +453,10 @@ class BalancerApp(tk.Tk):
             messagebox.showerror("SolidWorks Error", str(e))
             self.lbl_model_status.config(text="Error connecting to SolidWorks.", foreground="#c53030")
 
-    def on_add_custom_dim(self):
-        if not self.sw_conn.sw_model:
-            messagebox.showinfo("Connect First", "Please click 'Connect / Refresh Model' first.")
-            return
-
-        query = self.entry_custom_dim.get().strip()
-        if not query:
-            return
-
-        # Check if already in list
-        if any(d.name == query or d.full_name == query for d in self.dimensions):
-            messagebox.showinfo("Already Added", f"Dimension '{query}' is already in the list.")
-            return
-
-        dim_item = find_dimension_by_name(self.sw_conn.sw_model, query)
-        if dim_item:
-            self.dimensions.append(dim_item)
-            self._save_active_dimensions()
-            self._render_dimension_list()
-            self.log(f"Added dimension: {dim_item.name} = {dim_item.to_display_value():.3f} {dim_item.display_unit}")
-            self.entry_custom_dim.delete(0, tk.END)
-        else:
-            messagebox.showwarning(
-                "Dimension Not Found",
-                f"Could not find dimension '{query}' in SolidWorks.\n\n"
-                f"Tips:\n"
-                f"• Specify the full name, e.g.: OuterRadius@Sketch1 or D1@Boss-Extrude1\n"
-                f"• Or just the parameter name: OuterRadius or ToothAngle\n"
-                f"• Ensure the sketch or feature name matches your Feature Tree."
-            )
-
-    def on_pick_cad_dim(self):
-        if not self.sw_conn.sw_model:
-            messagebox.showinfo("Connect First", "Please click 'Connect / Refresh Model' first.")
-            return
-
-        dims = get_dimensions_from_selection(self.sw_conn.sw_model)
-        if not dims:
-            messagebox.showinfo(
-                "No Dimension Selected",
-                "Please click on a dimension in SolidWorks first (so it highlights blue), then click 'Pick From CAD Selection'."
-            )
-            return
-
-        added_cnt = 0
-        for dim_item in dims:
-            if not any(d.name == dim_item.name or d.full_name == dim_item.full_name for d in self.dimensions):
-                self.dimensions.append(dim_item)
-                added_cnt += 1
-                self.log(f"Added dimension from CAD: {dim_item.name} = {dim_item.to_display_value():.3f} {dim_item.display_unit}")
-
-        if added_cnt > 0:
-            self._save_active_dimensions()
-            self._render_dimension_list()
-
     def on_remove_dimension(self, idx):
         if 0 <= idx < len(self.dimensions):
             removed = self.dimensions.pop(idx)
-            self.log(f"Removed dimension: {removed.name}")
-            self._save_active_dimensions()
+            self.log(f"Removed dimension from balancing list: {removed.name}")
             self._render_dimension_list()
             if self.analysis_cache:
                 self.analysis_cache = None
@@ -636,12 +465,11 @@ class BalancerApp(tk.Tk):
     def on_clear_dimensions_list(self):
         if not self.dimensions:
             return
-        if messagebox.askyesno("Clear Dimensions", "Remove all dimensions from the list?"):
+        if messagebox.askyesno("Clear Dimensions", "Remove all dimensions from the balancing list?"):
             self.dimensions.clear()
-            self._save_active_dimensions()
             self._render_dimension_list()
             self.analysis_cache = None
-            self.lbl_verdict.config(text="Add dimensions to adjust.", foreground="#4a5568")
+            self.lbl_verdict.config(text="Click '🔄 Re-Scan CAD Dimensions' to reload.", foreground="#4a5568")
 
     def update_mass_and_com_labels(self, mass_g, com):
         text = f"Mass: {mass_g:.2f} g ({len(self.solid_bodies)} solid bodies)"
@@ -664,15 +492,14 @@ class BalancerApp(tk.Tk):
         if not self.dimensions:
             lbl_empty = ttk.Label(
                 self.dim_list_frame,
-                text="No dimensions added yet.\n\n"
-                     "• Enter dimension name above (e.g. OuterRadius@Sketch1) and click '+ Add'\n"
-                     "• Or click a dimension in SolidWorks and click 'Pick From CAD Selection'",
+                text="No driving sketch dimensions loaded.\n\n"
+                     "Click 'Connect / Refresh Model' or '🔄 Re-Scan CAD Dimensions' with your model open in SolidWorks.",
                 justify=tk.CENTER,
                 foreground="#718096",
                 font=("Segoe UI", 9, "italic")
             )
             lbl_empty.pack(pady=28, fill=tk.BOTH, expand=True)
-            self.lbl_verdict.config(text="Add at least one dimension to balance.", foreground="#718096")
+            self.lbl_verdict.config(text="Connect model to auto-detect driving dimensions.", foreground="#718096")
             return
 
         for i, dim in enumerate(self.dimensions):

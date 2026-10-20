@@ -278,7 +278,7 @@ def get_mass_properties(sw_model, bodies=None):
                         pass
 
                     # Only assign SelectedItems if bodies is provided AND has > 1 body in a multi-body part.
-                    # For a single-part weapon, leaving SelectedItems unset evaluates the entire model cleanly.
+                    # For a single-body part, leaving SelectedItems unset evaluates the entire model cleanly.
                     if bodies and len(bodies) > 1:
                         try:
                             mass_prop.SelectedItems = bodies
@@ -338,7 +338,7 @@ def get_mass_properties(sw_model, bodies=None):
     err_details = f"\nDetails: {'; '.join(errors)}" if errors else ""
     raise RuntimeError(
         f"Could not calculate mass properties from SolidWorks.{err_details}\n"
-        "Please ensure your weapon part has 3D geometry with material/density assigned."
+        "Please ensure your CAD part has 3D geometry with material/density assigned."
     )
 
 
@@ -464,7 +464,7 @@ def extract_spin_axis(sw_model):
     if not count:
         raise RuntimeError(
             "Nothing is selected in SolidWorks for the Spin Axis.\n\n"
-            "Please click on your weapon's cylindrical bore face, circular edge, or reference axis in SolidWorks, then try again."
+            "Please click on a cylindrical bore face, circular edge, or reference axis in SolidWorks, then try again."
         )
 
     debug_items = []
@@ -519,7 +519,7 @@ def extract_spin_axis(sw_model):
     raise RuntimeError(
         f"Selected entity is not recognized as a cylindrical bore, circular edge, or reference axis.\n\n"
         f"SolidWorks selection details:\n{details}\n\n"
-        f"Tip: Click directly on the inner cylindrical bore face of your weapon in SolidWorks (or a circular edge around the bore), then click 'Pick Spin Axis'."
+        f"Tip: Click directly on an inner cylindrical bore face (or a circular edge around the bore) in SolidWorks, then click 'Pick Spin Axis'."
     )
 
 
@@ -527,7 +527,7 @@ class DimensionItem:
     """Represents a driving sketch or feature dimension in SolidWorks."""
 
     def __init__(self, name, full_name, sketch_name, value_m, dim_obj, is_angular=False):
-        self.name = name                 # e.g., "D1@Sketch1" or "ToothAngle@Sketch1"
+        self.name = name                 # e.g., "D1@Sketch1"
         self.full_name = full_name
         self.sketch_name = sketch_name   # e.g., "Sketch1"
         self.value_m = float(value_m)    # baseline value in meters (or radians if angular)
