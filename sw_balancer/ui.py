@@ -513,11 +513,22 @@ class BalancerApp(tk.Tk):
                 elif rt['kind'] == 'none':
                     label_text += "  —  [no effect]"
                 else:
-                    label_text += f"  —  {rt['effect']:.3f} mm/%"
-                    if rt['share'] >= 0.20:
-                        label_text += f", alone fixes {rt['share']*100:.0f}% at {rt['needed']:+.1f}%"
-                        if abs(rt['needed']) > self.var_pct.get():
-                            label_text += " (over limit)"
+                    if dim.is_angular:
+                        val_deg = abs(dim.to_display_value())
+                        deg_per_pct = (val_deg * 0.01) if val_deg > 1e-4 else 1.0
+                        mm_per_deg = rt['effect'] / deg_per_pct
+                        needed_deg = (rt['needed'] / 100.0) * dim.to_display_value()
+                        label_text += f"  —  {mm_per_deg:.3f} mm/deg"
+                        if rt['share'] >= 0.20:
+                            label_text += f", alone fixes {rt['share']*100:.0f}% at {needed_deg:+.1f} deg ({rt['needed']:+.1f}%)"
+                            if abs(rt['needed']) > self.var_pct.get():
+                                label_text += " (over limit)"
+                    else:
+                        label_text += f"  —  {rt['effect']:.3f} mm/%"
+                        if rt['share'] >= 0.20:
+                            label_text += f", alone fixes {rt['share']*100:.0f}% at {rt['needed']:+.1f}%"
+                            if abs(rt['needed']) > self.var_pct.get():
+                                label_text += " (over limit)"
 
             row_frame = ttk.Frame(self.dim_list_frame, style="White.TFrame")
             row_frame.pack(fill=tk.X, padx=4, pady=2)
@@ -569,11 +580,22 @@ class BalancerApp(tk.Tk):
         self.cancel_requested = False
         self.update()
 
-        # Baseline values
+        # Baseline values and bounds
         x0 = [d.get_current_value() for d in params]
-        scale = [abs(v) if abs(v) > 1e-12 else 0.001 for v in x0]
-        lo = [v - v * (pct / 100.0) for v in x0]
-        hi = [v + v * (pct / 100.0) for v in x0]
+        scale = []
+        lo = []
+        hi = []
+        for d, v in zip(params, x0):
+            delta = abs(v) * (pct / 100.0)
+            sc = abs(v)
+            if getattr(d, 'is_angular', False):
+                # Ensure at least 5 deg search range for angles close to zero
+                min_ang_rad = math.radians(5.0)
+                delta = max(delta, min_ang_rad * (pct / 100.0))
+                sc = max(sc, math.radians(10.0))
+            scale.append(sc if sc > 1e-12 else 0.001)
+            lo.append(v - delta)
+            hi.append(v + delta)
 
         evaluator = make_evaluator(self.sw_conn.sw_model, params, self.solid_bodies, self.spin_axis)
 
@@ -718,9 +740,19 @@ class BalancerApp(tk.Tk):
 
         # Prepare bounds & solver
         x0 = [d.get_current_value() for d in free_dims]
-        scale = [abs(v) if abs(v) > 1e-12 else 0.001 for v in x0]
-        lo = [v - v * (pct / 100.0) for v in x0]
-        hi = [v + v * (pct / 100.0) for v in x0]
+        scale = []
+        lo = []
+        hi = []
+        for d, v in zip(free_dims, x0):
+            delta = abs(v) * (pct / 100.0)
+            sc = abs(v)
+            if getattr(d, 'is_angular', False):
+                min_ang_rad = math.radians(5.0)
+                delta = max(delta, min_ang_rad * (pct / 100.0))
+                sc = max(sc, math.radians(10.0))
+            scale.append(sc if sc > 1e-12 else 0.001)
+            lo.append(v - delta)
+            hi.append(v + delta)
 
         evaluator = make_evaluator(self.sw_conn.sw_model, free_dims, self.solid_bodies, self.spin_axis)
 
