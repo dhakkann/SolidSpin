@@ -607,16 +607,22 @@ def _process_dimension(dim, feat, feat_name, dimensions, visited_dim_names):
     if dim is None:
         return
 
-    name = com_prop_or_call(dim, "GetNameForSelection") or com_prop_or_call(dim, "FullName") or com_prop_or_call(dim, "Name")
-    if not name:
-        name = "Dimension"
+    raw_name = com_prop_or_call(dim, "GetNameForSelection") or com_prop_or_call(dim, "FullName") or com_prop_or_call(dim, "Name")
+    if not raw_name:
+        raw_name = "Dimension"
 
-    canonical = name
-    if "@" not in canonical and feat_name:
-        canonical = f"{name}@{feat_name}"
+    raw_str = str(raw_name)
+    parts = raw_str.split("@")
+    if len(parts) >= 2:
+        # Canonicalize e.g. "D1@Fillet1@Document.Part" -> "D1@Fillet1"
+        canonical = f"{parts[0]}@{parts[1]}"
+    elif feat_name:
+        canonical = f"{raw_str}@{feat_name}"
+    else:
+        canonical = raw_str
 
     # Avoid duplicate additions
-    if canonical in visited_dim_names or name in visited_dim_names:
+    if canonical in visited_dim_names or raw_str in visited_dim_names:
         return
 
     driven_state = com_prop_or_call(dim, "DrivenState")
@@ -643,10 +649,11 @@ def _process_dimension(dim, feat, feat_name, dimensions, visited_dim_names):
             return
 
         dim_type = com_prop_or_call(dim, "GetType")
-        is_angular = (dim_type == 1) or any(k in str(name).lower() for k in ["angle", "deg", "sweep"])
+        is_angular = (dim_type == 1) or any(k in str(canonical).lower() for k in ["angle", "deg", "sweep"])
 
         full_name = com_prop_or_call(dim, "FullName") or canonical
-        visited_dim_names.add(name)
+        visited_dim_names.add(raw_name)
+        visited_dim_names.add(raw_str)
         visited_dim_names.add(canonical)
         visited_dim_names.add(full_name)
         dimensions.append(
@@ -661,29 +668,50 @@ def _process_dimension(dim, feat, feat_name, dimensions, visited_dim_names):
         )
 
 
-def _extract_dimensions_from_sketch_feature(sketch_feat, sketch_name, dimensions, visited_dim_names):
-    """Walk all DisplayDimensions on a sketch feature using property-first traversal."""
-    dd = com_prop_or_call(sketch_feat, "GetFirstDisplayDimension")
+SKIP_FEATURE_TYPES = {
+    "originprofilefeature", "refplane", "refaxis", "coordsys",
+    "materialfolder", "favoritematerialfeature", "solidbodyfolder",
+    "surfacebodyfolder", "annotationfolder", "selectionsetfolder",
+    "commentsfolder", "historyfolder", "sensorfolder"
+}
+
+
+def _extract_dimensions_from_feature(feat, feat_name, dimensions, visited_dim_names, sw_model=None):
+    """Walk all DisplayDimensions and direct parameters on any feature (Fillets, Chamfers, Sketches, Extrusions)."""
+    if feat is None:
+        return
+
+    # 1. Walk DisplayDimension linked list (works on sketches, fillets, extrusions, revolves)
+    dd = com_prop_or_call(feat, "GetFirstDisplayDimension")
     while dd is not None:
         dim = com_prop_or_call(dd, "GetDimension2", 0)
         if dim is None:
             dim = com_prop_or_call(dd, "GetDimension")
 
         if dim is not None:
-            _process_dimension(dim, sketch_feat, sketch_name, dimensions, visited_dim_names)
+            _process_dimension(dim, feat, feat_name, dimensions, visited_dim_names)
 
-        dd = com_prop_or_call(sketch_feat, "GetNextDisplayDimension", dd)
+        dd = com_prop_or_call(feat, "GetNextDisplayDimension", dd)
+
+    # 2. Check direct feature parameters (e.g. D1@Fillet1, Radius, D1@Chamfer1)
+    # Ensures fillet radii and feature parameters are captured even if display dimension visibility is toggled off
+    for pname in ("D1", "D2", "Radius", "FilletRadius", "Distance", "Angle"):
+        dim = None
+        try:
+            dim = com_prop_or_call(feat, "Parameter", pname)
+        except Exception:
+            pass
+        if dim is None and sw_model is not None:
+            try:
+                dim = safe_call(sw_model, "Parameter", f"{pname}@{feat_name}")
+            except Exception:
+                pass
+        if dim is not None:
+            _process_dimension(dim, feat, feat_name, dimensions, visited_dim_names)
 
 
 def get_sketch_dimensions(sw_model):
-    """Enumerate all driving sketch dimensions from the active SolidWorks model.
-
-    Traverses the feature tree using property-first COM access:
-    - Features -> Sub-features (sketches absorbed under Extrude, Cut, Boss, Revolve, etc.)
-    - Top-level unabsorbed sketches
-    - Walks DisplayDimensions via GetFirstDisplayDimension / GetNextDisplayDimension(dd)
-    - Extracts driving IDimension objects with live values and angular detection.
-    """
+    """Enumerate all driving dimensions (sketches, fillets, extrusions, chamfers) from active SolidWorks model."""
     dimensions = []
     visited_dim_names = set()
 
@@ -704,20 +732,20 @@ def get_sketch_dimensions(sw_model):
     feat = com_prop_or_call(sw_model, "FirstFeature")
     while feat is not None:
         fname = com_prop_or_call(feat, "Name") or "Feature"
-        ftype = com_prop_or_call(feat, "GetTypeName2") or ""
+        ftype = (com_prop_or_call(feat, "GetTypeName2") or "").lower()
 
-        # 1. If feature itself is a sketch (top-level unabsorbed sketch)
-        if "Profile" in ftype or "Sketch" in ftype:
-            _extract_dimensions_from_sketch_feature(feat, fname, dimensions, visited_dim_names)
+        if ftype not in SKIP_FEATURE_TYPES:
+            # 1. Extract dimensions from the feature itself (Fillets, Chamfers, Extrusions, Top-level Sketches)
+            _extract_dimensions_from_feature(feat, fname, dimensions, visited_dim_names, sw_model)
 
-        # 2. Check sub-features (sketches absorbed under Extrude, Cut, Boss, Revolve, etc.)
-        sub = com_prop_or_call(feat, "GetFirstSubFeature")
-        while sub is not None:
-            sname = com_prop_or_call(sub, "Name") or "Sketch"
-            stype = com_prop_or_call(sub, "GetTypeName2") or ""
-            if "Profile" in stype or "Sketch" in stype:
-                _extract_dimensions_from_sketch_feature(sub, sname, dimensions, visited_dim_names)
-            sub = com_prop_or_call(sub, "GetNextSubFeature")
+            # 2. Extract dimensions from any sub-features (sketches absorbed under Extrude, Cut, Boss, Revolve, etc.)
+            sub = com_prop_or_call(feat, "GetFirstSubFeature")
+            while sub is not None:
+                sname = com_prop_or_call(sub, "Name") or "Sketch"
+                stype = (com_prop_or_call(sub, "GetTypeName2") or "").lower()
+                if stype not in SKIP_FEATURE_TYPES:
+                    _extract_dimensions_from_feature(sub, sname, dimensions, visited_dim_names, sw_model)
+                sub = com_prop_or_call(sub, "GetNextSubFeature")
 
         feat = com_prop_or_call(feat, "GetNextFeature")
 
@@ -748,6 +776,10 @@ def get_sketch_dimensions(sw_model):
                     dim = com_prop_or_call(sel_obj, "GetDimension2", 0) or com_prop_or_call(sel_obj, "GetDimension")
                     if dim is not None:
                         _process_dimension(dim, sel_obj, "Selected", dimensions, visited_dim_names)
+                    else:
+                        s_feat = com_prop_or_call(sel_obj, "GetSpecificFeature2") or sel_obj
+                        s_fname = com_prop_or_call(s_feat, "Name") or "Selected"
+                        _extract_dimensions_from_feature(s_feat, s_fname, dimensions, visited_dim_names, sw_model)
     except Exception:
         pass
 
