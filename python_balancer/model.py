@@ -27,20 +27,20 @@ class WeaponGeometry:
     - Hub Option B: Straight through-bore for dual pressed bearings and floating spacer sleeve
     - Physical Constraints: Max R = 63.0 mm, Target Mass = 1.500 kg, 2 kJ Energy Target
     """
-    # 1. Tooth & Gullet Geometry (Max R = 63.0 mm envelope)
+    # 1. Tooth & Gullet Geometry (Max R = 63.0 mm envelope, Reinforced Neck)
     r_tooth: float = 63.0         # mm (outer impact tooth radius, max envelope)
-    angle_tooth: float = 38.0     # deg (tooth tip engagement arc)
-    r_waist: float = 80.0         # mm (gullet transition arc radius)
+    angle_tooth: float = 40.0     # deg (tooth tip engagement arc, wide impact face)
+    r_waist: float = 130.0        # mm (gullet transition arc radius, reinforced waist)
     dia_relief: float = 50.0      # mm (central hub / gullet root diameter)
-    fillet_r: float = 15.0        # mm (gullet root stress-relief fillet radius)
+    fillet_r: float = 18.0        # mm (gullet root stress-relief fillet radius)
 
-    # 2. Bite Clearance & Counterweight
-    r_counter: float = 45.0       # mm (counterweight lobe radius, sets tooth step h = 18.0 mm)
-    angle_counter: float = 100.0  # deg (counterweight arc angle)
+    # 2. Bite Clearance & Counterweight (Reinforced stem balancing)
+    r_counter: float = 52.0       # mm (counterweight lobe radius, physical bite h = 11.0 mm)
+    angle_counter: float = 91.6   # deg (counterweight arc angle)
 
     # 3. Spin Axis & Shaft Bore (Option B: Straight Through-Bore)
     dia_bore: float = 22.0        # mm (straight through-bore for 22mm OD bearings e.g. 608)
-    thickness: float = 48.67      # mm (sets mass to exactly 1.500 kg for R=63mm profile)
+    thickness: float = 37.83      # mm (sets mass to exactly 1.500 kg for reinforced R=63mm profile)
     density: float = 0.00785      # g/mm³ (7.85 g/cm³ for Hardox 450 / 500)
 
     # --------------------------------------------------------------------------
@@ -87,6 +87,45 @@ class WeaponGeometry:
         """Linear width of the impact tooth tip."""
         half_ang = math.radians(self.angle_tooth / 2.0)
         return 2.0 * self.r_tooth * math.sin(half_ang)
+
+    @property
+    def min_neck_width_mm(self) -> float:
+        """
+        Minimum structural cross-sectional width of the neck/stem connecting
+        the tooth tip to the central hub.
+        """
+        ang_top_half = math.radians(self.angle_tooth / 2.0)
+        theta_tr = math.pi / 2.0 - ang_top_half
+        p_tr = (self.r_tooth * math.cos(theta_tr), self.r_tooth * math.sin(theta_tr))
+
+        ang_bot_half = math.radians(self.angle_counter / 2.0)
+        theta_br = -math.pi / 2.0 + ang_bot_half
+        p_br = (self.r_counter * math.cos(theta_br), self.r_counter * math.sin(theta_br))
+
+        mx = (p_tr[0] + p_br[0]) / 2.0
+        my = (p_tr[1] + p_br[1]) / 2.0
+        chord = math.hypot(p_br[0] - p_tr[0], p_br[1] - p_tr[1])
+        if chord >= 2.0 * self.r_waist:
+            return 2.0 * p_tr[0]
+
+        h = math.sqrt(self.r_waist ** 2 - (chord / 2.0) ** 2)
+        ux = (p_br[0] - p_tr[0]) / chord
+        uy = (p_br[1] - p_tr[1]) / chord
+        nx, ny = -uy, ux
+        if nx < 0:
+            nx, ny = -nx, -ny
+
+        cx_arc = mx + h * nx
+        cy_arc = my + h * ny
+        r_relief = self.dia_relief / 2.0
+
+        if r_relief <= cy_arc <= p_tr[1]:
+            return 2.0 * (cx_arc - self.r_waist)
+        elif cy_arc < r_relief:
+            disc = self.r_waist ** 2 - (r_relief - cy_arc) ** 2
+            if disc >= 0:
+                return 2.0 * (cx_arc - math.sqrt(disc))
+        return 2.0 * p_tr[0]
 
     # --------------------------------------------------------------------------
     # GEOMETRIC CONSTRUCTION
@@ -221,6 +260,7 @@ class WeaponGeometry:
             # Pillar 3: Tooth & Gullet Shape
             "r_tooth_mm": self.r_tooth,
             "tooth_tip_chord_mm": self.tooth_tip_chord,
+            "min_neck_width_mm": self.min_neck_width_mm,
             "gullet_depth_mm": self.gullet_depth,
             "fillet_r_mm": self.fillet_r,
             "r_counter_mm": self.r_counter,

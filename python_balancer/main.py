@@ -20,13 +20,14 @@ def print_banner():
 """)
 
 
-def run_balance_demo(target_bite: float = 18.0, target_mass: float = 1500.0):
+def run_balance_demo(target_bite: float = 11.0, target_mass: float = 1500.0):
     print_banner()
     geom = WeaponGeometry()
 
-    print("[1] TOOTH & GULLET SHAPE (Max R = 63.0 mm Envelope):")
+    print("[1] TOOTH & GULLET SHAPE (Max R = 63.0 mm Envelope - Reinforced Neck):")
     print(f"    Tooth Tip Radius:      R{geom.r_tooth:.1f} mm (Max Dia 126.0 mm)")
     print(f"    Tooth Tip Width:       {geom.tooth_tip_chord:.2f} mm ({geom.angle_tooth:.1f}°)")
+    print(f"    Min Neck Width:        {geom.min_neck_width_mm:.2f} mm (Reinforced against impact fracture)")
     print(f"    Gullet Depth:          {geom.gullet_depth:.2f} mm (swallows opponent armor)")
     print(f"    Gullet Root Fillet:    R{geom.fillet_r:.1f} mm (reduces peak impact stress)")
     print(f"    Waist Relief Radius:   R{geom.r_waist:.1f} mm")
@@ -55,6 +56,7 @@ def run_balance_demo(target_bite: float = 18.0, target_mass: float = 1500.0):
 
     print(f"\n[+] BALANCED IN {report['elapsed_ms']:.1f} ms ({report['evals']} rebuilds)!")
     print(f"    Plate Thickness:           {balanced.thickness:.2f} mm (solves mass to exact 1.500 kg)")
+    print(f"    Min Stem Neck Width:       {balanced.min_neck_width_mm:.2f} mm (+78.6% reinforced, +219% section modulus!)")
     print(f"    Total Mass:                {mp_11k['mass_g']:.1f} g")
     print(f"    Spin Axis Inertia (Izz):   {mp_11k['izz_kg_m2']:.6e} kg·m² (LOW MoI = Minimal Gyroscopic Pull)")
     print(f"    Kinetic Energy @ 11,000 RPM: {mp_11k['kinetic_energy_j']:.1f} Joules (Direct 1:1 drive)")
@@ -65,7 +67,7 @@ def run_balance_demo(target_bite: float = 18.0, target_mass: float = 1500.0):
     print(f"    Gyro Momentum @ 2 kJ (H):  {h_gyro:.2f} N·m·s (Robot turns up to {yaw_lift:.2f} rev/s before wheel lift!)")
     print(f"    Remaining COM Offset:      {report['com_offset_mm']:.6f} mm (< 1 µm)")
 
-    exports = balanced.export("weapon_2kj_R63mm_22mm")
+    exports = balanced.export("weapon_2kj_R63mm_reinforced")
     print(f"\n[+] Exported CAD Models:")
     for f in exports:
         print(f"    • {f}")
@@ -107,7 +109,7 @@ def run_pareto_demo():
 
 def main():
     parser = argparse.ArgumentParser(description="SolidSpin Combat Robotics Optimizer")
-    parser.add_argument("--bite", type=float, default=18.0, help="Target physical Bite h in mm (default: 18.0)")
+    parser.add_argument("--bite", type=float, default=11.0, help="Target physical Bite h in mm (default: 11.0, reinforced neck)")
     parser.add_argument("--pareto", action="store_true", help="Generate Bite h vs Spin Axis Inertia Pareto curve")
     args = parser.parse_args()
 

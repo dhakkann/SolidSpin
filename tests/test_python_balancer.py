@@ -16,8 +16,9 @@ def test_weapon_geometry_option_b():
     assert geom.r_tooth == 63.0
     assert geom.dia_bore == 22.0
     assert (geom.dia_relief - geom.dia_bore) / 2.0 == 14.0  # 14 mm solid wall
-    assert abs(geom.bite_h - 18.0) < 1e-4  # 63.0 - 45.0
+    assert abs(geom.bite_h - 11.0) < 1e-4  # 63.0 - 52.0 (Reinforced bite clearance)
     assert geom.gullet_depth == 38.0  # 63.0 - 25.0
+    assert geom.min_neck_width_mm > 35.0  # Reinforced neck cross-section (was 20.6 mm)
 
     # Test bearing spacer creation
     spacer = geom.build_bearing_spacer(bearing_width=7.0, shaft_dia=8.0)
