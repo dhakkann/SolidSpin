@@ -11,6 +11,8 @@ htmlcov/
 
 # Saved state / temporary
 saved_dimensions.json
+*.step
+*.stl
 
 # Virtual environments
 venv/
