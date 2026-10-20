@@ -1,18 +1,13 @@
 """
-Parametric Weapon Disc Geometry Definition using build123d.
-
-Defines the asymmetric single/dual-tooth weapon disc with:
-- Top lobe arc (R_top, Angle_top)
-- Bottom lobe arc (R_bot, Angle_bot)
-- Inward waist arcs (R_waist)
-- Central relief boss (Dia_relief)
-- Transition fillets (R_fillet)
-- Shaft bore (Dia_bore)
-- Extrusion thickness (Thickness)
+Parametric Combat Robotics Weapon Disc Model.
+Formulated strictly around three core engineering pillars:
+1. Spin Axis Inertia (Izz, kinetic energy, spin-up dynamics)
+2. Bite h (tooth engagement clearance vs closing speed)
+3. Tooth & Gullet Shape (tip width, gullet depth, stress relief radius)
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Any, Tuple
 from build123d import (
     BuildPart, BuildSketch, BuildLine,
@@ -24,17 +19,76 @@ from build123d import (
 
 @dataclass
 class WeaponGeometry:
-    r_top: float = 63.0         # mm (top lobe radius)
-    angle_top: float = 40.0     # deg (top lobe angle)
-    r_bot: float = 45.0         # mm (bottom lobe radius)
-    angle_bot: float = 100.0    # deg (bottom lobe angle)
-    r_waist: float = 80.0       # mm (connecting waist arc radius)
-    dia_relief: float = 50.0    # mm (center boss diameter)
-    fillet_r: float = 15.0      # mm (transition fillet radius)
-    dia_bore: float = 12.0      # mm (center shaft bore)
-    thickness: float = 15.0     # mm (plate thickness)
-    density: float = 0.00785    # g/mm³ (7.85 g/cm³ for Hardox / Alloy Steel)
+    """
+    Parametric weapon disc defined by:
+    - Tooth & Gullet Shape: r_tooth, angle_tooth, r_waist, dia_relief, fillet_r
+    - Bite h: governed by tooth radial drop relative to counterweight (r_counter)
+    - Spin Axis Inertia (Izz): governed by overall mass distribution about shaft bore
+    """
+    # 1. Tooth & Gullet Geometry
+    r_tooth: float = 63.0         # mm (outer impact tooth radius)
+    angle_tooth: float = 40.0     # deg (tooth tip engagement arc)
+    r_waist: float = 80.0         # mm (gullet transition arc radius)
+    dia_relief: float = 50.0      # mm (central hub / gullet root diameter)
+    fillet_r: float = 15.0        # mm (gullet root stress-relief fillet radius)
 
+    # 2. Bite Clearance & Counterweight
+    r_counter: float = 45.0       # mm (counterweight lobe radius, sets tooth step h)
+    angle_counter: float = 100.0  # deg (counterweight arc angle)
+
+    # 3. Spin Axis & Shaft Bore
+    dia_bore: float = 12.0        # mm (spin axis shaft hole diameter)
+    thickness: float = 15.0       # mm (disc plate thickness)
+    density: float = 0.00785      # g/mm³ (7.85 g/cm³ for Hardox 450 / 500)
+
+    # --------------------------------------------------------------------------
+    # PILLAR 1: BITE h METRICS
+    # --------------------------------------------------------------------------
+    @property
+    def bite_h(self) -> float:
+        """
+        Physical Bite Height / Radial Tooth Clearance:
+        h = R_tooth - R_counter
+        The radial step that allows the tooth to bite into the opponent before
+        the counterweight lobe or hub makes contact.
+        """
+        return self.r_tooth - self.r_counter
+
+    @bite_h.setter
+    def bite_h(self, target_h: float):
+        """Set counterweight radius to achieve the target physical bite clearance."""
+        self.r_counter = self.r_tooth - target_h
+
+    def dynamic_bite(self, robot_closing_speed_m_s: float, rpm: float) -> float:
+        """
+        Theoretical forward penetration per revolution (RioBotz equation):
+        h_dyn = (v_robot * 60) / (rpm * n_teeth)
+        """
+        revs_per_sec = rpm / 60.0
+        # Single tooth disc (n_teeth = 1)
+        return (robot_closing_speed_m_s * 1000.0) / revs_per_sec
+
+    # --------------------------------------------------------------------------
+    # PILLAR 2: TOOTH & GULLET SHAPE METRICS
+    # --------------------------------------------------------------------------
+    @property
+    def gullet_depth(self) -> float:
+        """
+        Radial depth of the gullet pocket from tooth tip to central hub:
+        d_gullet = R_tooth - (Dia_relief / 2)
+        Must be deep enough to swallow the target robot's armor/chassis corner.
+        """
+        return self.r_tooth - (self.dia_relief / 2.0)
+
+    @property
+    def tooth_tip_chord(self) -> float:
+        """Linear width of the impact tooth tip."""
+        half_ang = math.radians(self.angle_tooth / 2.0)
+        return 2.0 * self.r_tooth * math.sin(half_ang)
+
+    # --------------------------------------------------------------------------
+    # GEOMETRIC CONSTRUCTION
+    # --------------------------------------------------------------------------
     def _calculate_waist_arc_midpoint(
         self,
         p1: Tuple[float, float],
@@ -42,7 +96,7 @@ class WeaponGeometry:
         r_waist: float,
         is_right: bool = True
     ) -> Tuple[float, float]:
-        """Compute the midpoint on the inward-curving circular waist arc."""
+        """Compute the midpoint on the concave gullet waist arc."""
         p1x, p1y = p1
         p2x, p2y = p2
 
@@ -57,39 +111,35 @@ class WeaponGeometry:
         ux = (p2x - p1x) / chord
         uy = (p2y - p1y) / chord
 
-        # Normal perpendicular to chord
         nx, ny = -uy, ux
         if is_right and nx < 0:
             nx, ny = -nx, -ny
         elif not is_right and nx > 0:
             nx, ny = -nx, -ny
 
-        # Circle center (pointing outside)
         cx = mx + h * nx
         cy = my + h * ny
-
-        # Arc midpoint (bows inward toward the origin)
         return (cx - r_waist * nx, cy - r_waist * ny)
 
     def build(self) -> Part:
-        """Construct the 3D Part object via build123d."""
-        # Top arc endpoints
-        ang_top_half = math.radians(self.angle_top / 2.0)
+        """Construct the exact 3D Part object via build123d."""
+        # Tooth arc endpoints (symmetric about +Y)
+        ang_top_half = math.radians(self.angle_tooth / 2.0)
         theta_tr = math.pi / 2.0 - ang_top_half
         theta_tl = math.pi / 2.0 + ang_top_half
-        p_tr = (self.r_top * math.cos(theta_tr), self.r_top * math.sin(theta_tr))
-        p_tl = (self.r_top * math.cos(theta_tl), self.r_top * math.sin(theta_tl))
-        p_top_mid = (0.0, self.r_top)
+        p_tr = (self.r_tooth * math.cos(theta_tr), self.r_tooth * math.sin(theta_tr))
+        p_tl = (self.r_tooth * math.cos(theta_tl), self.r_tooth * math.sin(theta_tl))
+        p_top_mid = (0.0, self.r_tooth)
 
-        # Bottom arc endpoints
-        ang_bot_half = math.radians(self.angle_bot / 2.0)
+        # Counterweight arc endpoints (symmetric about -Y)
+        ang_bot_half = math.radians(self.angle_counter / 2.0)
         theta_br = -math.pi / 2.0 + ang_bot_half
         theta_bl = -math.pi / 2.0 - ang_bot_half
-        p_br = (self.r_bot * math.cos(theta_br), self.r_bot * math.sin(theta_br))
-        p_bl = (self.r_bot * math.cos(theta_bl), self.r_bot * math.sin(theta_bl))
-        p_bot_mid = (0.0, -self.r_bot)
+        p_br = (self.r_counter * math.cos(theta_br), self.r_counter * math.sin(theta_br))
+        p_bl = (self.r_counter * math.cos(theta_bl), self.r_counter * math.sin(theta_bl))
+        p_bot_mid = (0.0, -self.r_counter)
 
-        # Waist midpoints
+        # Gullet waist midpoints
         p_waist_r_mid = self._calculate_waist_arc_midpoint(p_tr, p_br, self.r_waist, is_right=True)
         p_waist_l_mid = (-p_waist_r_mid[0], p_waist_r_mid[1])
 
@@ -97,7 +147,6 @@ class WeaponGeometry:
 
         with BuildPart() as wp:
             with BuildSketch() as sketch:
-                # 1. Main outer lobe wire
                 with BuildLine():
                     ThreePointArc(p_tr, p_top_mid, p_tl)
                     ThreePointArc(p_tl, p_waist_l_mid, p_bl)
@@ -105,10 +154,10 @@ class WeaponGeometry:
                     ThreePointArc(p_br, p_waist_r_mid, p_tr)
                 make_face()
 
-                # 2. Add central relief disk
+                # Central gullet root hub
                 Circle(radius=r_relief, mode=Mode.ADD)
 
-                # 3. Fillet the 4 transition vertices where relief circle meets waist
+                # Fillet gullet root transition vertices
                 junction_vertices = [
                     v for v in sketch.vertices()
                     if abs(math.hypot(v.X, v.Y) - r_relief) < 3.0
@@ -119,57 +168,68 @@ class WeaponGeometry:
                     except Exception:
                         pass
 
-                # 4. Central bore cutout
+                # Spin axis shaft bore
                 Circle(radius=self.dia_bore / 2.0, mode=Mode.SUBTRACT)
 
-            # 5. Extrude into 3D solid
             extrude(amount=self.thickness)
 
         return wp.part
 
     def evaluate_com(self) -> Tuple[float, float]:
-        """Return (offset_x, offset_y) of Center of Mass from origin in mm."""
+        """Return (com_x, com_y) offset from spin axis in mm."""
         part = self.build()
         c = part.center()
         return (c.X, c.Y)
 
-    def mass_properties(self, rpm: float = 8000.0) -> Dict[str, Any]:
-        """Compute full physical and inertial mass properties."""
+    # --------------------------------------------------------------------------
+    # PILLAR 3: SPIN AXIS INERTIA (Izz) METRICS
+    # --------------------------------------------------------------------------
+    def mass_properties(self, rpm: float = 8000.0, closing_speed_m_s: float = 3.5) -> Dict[str, Any]:
+        """Compute metrics focusing strictly on Inertia, Bite, and Tooth/Gullet shape."""
         part = self.build()
-        vol = part.volume  # mm³
-        mass_g = vol * self.density  # g
+        vol = part.volume
+        mass_g = vol * self.density
         mass_kg = mass_g / 1000.0
-        com = part.center()  # mm
+        com = part.center()
 
         # Matrix of inertia from OpenCASCADE is volume inertia in mm⁵
-        # Multiply by density (g/mm³) -> g·mm² -> convert to kg·m² (1 kg·m² = 1e9 g·mm²)
+        # Scale to kg·m²: multiply by (density in g/mm³ * 1e-9)
         mat = part.matrix_of_inertia
         scale_to_kg_m2 = (self.density * 1e-9)
-        ixx = mat[0][0] * scale_to_kg_m2
-        iyy = mat[1][1] * scale_to_kg_m2
-        izz = mat[2][2] * scale_to_kg_m2
+        izz = mat[2][2] * scale_to_kg_m2  # Spin Axis Inertia
 
-        # Kinetic energy about Z-axis at target RPM: E = 0.5 * I * omega²
-        omega_rad_s = (rpm * 2.0 * math.pi) / 60.0
-        energy_joules = 0.5 * izz * (omega_rad_s ** 2)
+        omega = (rpm * 2.0 * math.pi) / 60.0
+        energy_j = 0.5 * izz * (omega ** 2)
+        h_dyn = self.dynamic_bite(closing_speed_m_s, rpm)
 
         return {
-            "volume_mm3": vol,
+            # Pillar 1: Spin Axis Inertia
+            "izz_kg_m2": izz,
+            "kinetic_energy_j": energy_j,
             "mass_g": mass_g,
             "mass_kg": mass_kg,
-            "com_x": com.X,
-            "com_y": com.Y,
-            "com_z": com.Z,
-            "com_offset_mm": math.hypot(com.X, com.Y),
-            "ixx_kg_m2": ixx,
-            "iyy_kg_m2": iyy,
-            "izz_kg_m2": izz,
             "rpm": rpm,
-            "kinetic_energy_j": energy_joules
+            "specific_inertia": (izz / mass_kg) if mass_kg > 0 else 0,  # Inertial efficiency (m²)
+
+            # Pillar 2: Bite h
+            "bite_h_physical_mm": self.bite_h,
+            "bite_h_dynamic_mm": h_dyn,
+            "bite_clearance_ratio": self.bite_h / h_dyn if h_dyn > 0 else 0,
+
+            # Pillar 3: Tooth & Gullet Shape
+            "r_tooth_mm": self.r_tooth,
+            "tooth_tip_chord_mm": self.tooth_tip_chord,
+            "gullet_depth_mm": self.gullet_depth,
+            "fillet_r_mm": self.fillet_r,
+            "r_counter_mm": self.r_counter,
+            "r_waist_mm": self.r_waist,
+
+            # Balance State
+            "com_offset_mm": math.hypot(com.X, com.Y),
+            "is_balanced": math.hypot(com.X, com.Y) < 1e-4
         }
 
     def export(self, prefix: str = "weapon_disc"):
-        """Export STEP and STL formats."""
         part = self.build()
         step_path = f"{prefix}.step"
         stl_path = f"{prefix}.stl"

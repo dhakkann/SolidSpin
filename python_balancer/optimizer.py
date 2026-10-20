@@ -1,119 +1,116 @@
 """
-Numerical Balancing & Multi-Objective Pareto Optimizer.
-Uses Gauss-Newton + Broyden solver directly on parametric build123d geometry.
+Kinetic Optimizer focusing strictly on:
+1. Spin Axis Inertia (Izz)
+2. Bite h
+3. Tooth & Gullet Shape
 """
 
 import copy
 import math
 import time
 from typing import List, Dict, Any, Tuple
-from sw_balancer.solver import solve_multi, COM_TOL_MM
+from sw_balancer.solver import solve_multi
 from .model import WeaponGeometry
 
 
-def balance_weapon(
+def balance_for_bite(
     base_geom: WeaponGeometry,
+    target_bite_h: float,
     free_params: List[str] = None,
-    pct_range: float = 30.0,
-    tol_mm: float = 1e-4
+    pct_range: float = 55.0
 ) -> Tuple[WeaponGeometry, Dict[str, Any]]:
     """
-    Solve for exact dynamic balance (COM offset -> 0.0000 mm).
-
-    :param base_geom: Initial WeaponGeometry instance
-    :param free_params: List of attribute names to tune, e.g. ['r_top', 'angle_top']
-    :param pct_range: Max allowable percentage variation (±pct)
-    :param tol_mm: Convergence tolerance for COM offset in mm
-    :return: (balanced_geometry, solver_report)
+    Enforce exact Bite h, preserve Tooth/Gullet profile, and dynamically balance:
+    - Sets r_counter = r_tooth - target_bite_h
+    - Tunes tooth angle / counterweight angle to achieve COM = (0, 0)
     """
     if free_params is None:
-        free_params = ["r_top", "angle_top"]
+        free_params = ["angle_tooth", "angle_counter"]
 
-    x0 = [getattr(base_geom, name) for name in free_params]
+    geom = copy.copy(base_geom)
+    geom.bite_h = target_bite_h  # Sets r_counter = r_tooth - target_bite_h
+
+    x0 = [getattr(geom, name) for name in free_params]
     scale = list(x0)
     lo = [v * (1.0 - pct_range / 100.0) for v in x0]
     hi = [v * (1.0 + pct_range / 100.0) for v in x0]
 
     def evaluate(xs):
-        geom = copy.copy(base_geom)
+        trial = copy.copy(geom)
         for name, val in zip(free_params, xs):
-            setattr(geom, name, float(val))
-        return geom.evaluate_com()
+            setattr(trial, name, float(val))
+        return trial.evaluate_com()
 
-    t_start = time.perf_counter()
+    t0 = time.perf_counter()
     res = solve_multi(evaluate, x0, scale, lo, hi)
-    t_elapsed = time.perf_counter() - t_start
+    t_elapsed = time.perf_counter() - t0
 
-    # Create balanced geometry instance
-    balanced_geom = copy.copy(base_geom)
+    balanced = copy.copy(geom)
     for name, val in zip(free_params, res["x"]):
-        setattr(balanced_geom, name, float(val))
+        setattr(balanced, name, float(val))
 
-    initial_com = base_geom.evaluate_com()
-    final_com = balanced_geom.evaluate_com()
-    initial_offset = math.hypot(*initial_com)
-    final_offset = math.hypot(*final_com)
+    final_offset = math.hypot(*balanced.evaluate_com())
+    mp = balanced.mass_properties()
 
     report = {
-        "converged": final_offset <= tol_mm,
+        "converged": final_offset < 1e-4,
         "evals": res["evals"],
-        "elapsed_s": t_elapsed,
-        "free_params": free_params,
-        "initial_values": {k: getattr(base_geom, k) for k in free_params},
-        "balanced_values": {k: getattr(balanced_geom, k) for k in free_params},
-        "initial_offset_mm": initial_offset,
-        "final_offset_mm": final_offset,
-        "mass_props": balanced_geom.mass_properties()
+        "elapsed_ms": t_elapsed * 1000.0,
+        "bite_h_mm": target_bite_h,
+        "r_tooth_mm": balanced.r_tooth,
+        "r_counter_mm": balanced.r_counter,
+        "tooth_tip_chord_mm": balanced.tooth_tip_chord,
+        "gullet_depth_mm": balanced.gullet_depth,
+        "izz_kg_m2": mp["izz_kg_m2"],
+        "kinetic_energy_j": mp["kinetic_energy_j"],
+        "mass_g": mp["mass_g"],
+        "com_offset_mm": final_offset,
+        "balanced_params": {k: getattr(balanced, k) for k in free_params}
     }
-    return balanced_geom, report
+    return balanced, report
 
 
-def pareto_frontier(
+def pareto_bite_vs_inertia(
     base_geom: WeaponGeometry,
-    sweep_param: str = "r_top",
-    sweep_values: List[float] = None,
-    balance_params: List[str] = None,
-    rpm: float = 8000.0
+    bite_values: List[float] = None,
+    rpm: float = 8000.0,
+    closing_speed_m_s: float = 3.5
 ) -> List[Dict[str, Any]]:
     """
-    Explore the Pareto trade-off curve:
-    Vary one primary design requirement (e.g. Tooth Radius / Reach `r_top`),
-    and for each step, dynamically balance the weapon using `balance_params`.
+    Analyze the trade-off between:
+    - Bite h (engagement depth)
+    - Spin Axis Inertia (Izz & stored kinetic energy)
+    - Tooth & Gullet geometry
 
-    Computes:
-    - Mass (g) vs Kinetic Energy (Joules)
-    - Moment of Inertia Izz vs Weight
-    - Hit Energy per gram (J/g) efficiency
+    Every point on this curve is 100% dynamically balanced.
     """
-    if sweep_values is None:
-        sweep_values = [55.0, 58.0, 60.0, 63.0, 66.0, 68.0, 70.0]
-
-    if balance_params is None:
-        balance_params = ["angle_top", "r_bot"]
+    if bite_values is None:
+        bite_values = [12.0, 15.0, 18.0, 21.0, 24.0, 27.0]
 
     frontier = []
 
-    for val in sweep_values:
-        trial_geom = copy.copy(base_geom)
-        setattr(trial_geom, sweep_param, val)
-
+    for bite in bite_values:
         try:
-            balanced_geom, report = balance_weapon(trial_geom, free_params=balance_params)
-            mp = balanced_geom.mass_properties(rpm=rpm)
+            balanced_geom, report = balance_for_bite(base_geom, target_bite_h=bite)
+            mp = balanced_geom.mass_properties(rpm=rpm, closing_speed_m_s=closing_speed_m_s)
             frontier.append({
-                sweep_param: val,
+                "bite_h_mm": bite,
+                "dynamic_bite_mm": mp["bite_h_dynamic_mm"],
+                "clearance_ratio": bite / mp["bite_h_dynamic_mm"] if mp["bite_h_dynamic_mm"] > 0 else 0,
                 "balanced": report["converged"],
-                "mass_g": mp["mass_g"],
                 "izz_kg_m2": mp["izz_kg_m2"],
-                "energy_j": mp["kinetic_energy_j"],
-                "energy_per_g": mp["kinetic_energy_j"] / mp["mass_g"] if mp["mass_g"] > 0 else 0,
-                "com_offset_mm": mp["com_offset_mm"],
-                "tuning": report["balanced_values"],
+                "kinetic_energy_j": mp["kinetic_energy_j"],
+                "mass_g": mp["mass_g"],
+                "specific_inertia": mp["specific_inertia"],
+                "tooth_chord_mm": mp["tooth_tip_chord_mm"],
+                "gullet_depth_mm": mp["gullet_depth_mm"],
+                "angle_tooth": balanced_geom.angle_tooth,
+                "angle_counter": balanced_geom.angle_counter,
                 "geometry": balanced_geom
             })
         except Exception as e:
             frontier.append({
-                sweep_param: val,
+                "bite_h_mm": bite,
                 "balanced": False,
                 "error": str(e)
             })
