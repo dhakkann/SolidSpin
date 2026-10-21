@@ -301,7 +301,7 @@ class BalancerApp(tk.Tk):
         self.btn_clear_list.pack(side=tk.LEFT, padx=(0, 8))
 
         ttk.Label(d_toolbar, text="Max ±%:").pack(side=tk.LEFT, padx=(6, 2))
-        self.var_pct = tk.IntVar(value=45)
+        self.var_pct = tk.StringVar(value="45")
         self.spin_pct = ttk.Spinbox(d_toolbar, from_=1, to=95, increment=5, textvariable=self.var_pct, width=4)
         self.spin_pct.pack(side=tk.LEFT)
         self.var_pct.trace_add("write", lambda *args: self.update_controllability_check())
@@ -523,13 +523,13 @@ class BalancerApp(tk.Tk):
                         label_text += f"  —  {mm_per_deg:.3f} mm/deg"
                         if rt['share'] >= 0.20:
                             label_text += f", alone fixes {rt['share']*100:.0f}% at {needed_deg:+.1f} deg ({rt['needed']:+.1f}%)"
-                            if abs(rt['needed']) > self.var_pct.get():
+                            if abs(rt['needed']) > self.get_max_pct():
                                 label_text += " (over limit)"
                     else:
                         label_text += f"  —  {rt['effect']:.3f} mm/%"
                         if rt['share'] >= 0.20:
                             label_text += f", alone fixes {rt['share']*100:.0f}% at {rt['needed']:+.1f}%"
-                            if abs(rt['needed']) > self.var_pct.get():
+                            if abs(rt['needed']) > self.get_max_pct():
                                 label_text += " (over limit)"
 
             row_frame = ttk.Frame(self.dim_list_frame, style="White.TFrame")
@@ -570,7 +570,7 @@ class BalancerApp(tk.Tk):
             messagebox.showinfo("Selection Required", "Please ensure SolidWorks is connected.")
             return
 
-        pct = self.var_pct.get()
+        pct = self.get_max_pct()
         params = self.dimensions
         if not params:
             messagebox.showinfo("No Dimensions", "Please add at least one dimension to analyze.")
@@ -662,11 +662,30 @@ class BalancerApp(tk.Tk):
         self.log(f"Analysis complete: {len(usable)} of {len(rates)} dimensions move the Centre of Mass.")
         self.update_controllability_check()
 
+    def get_max_pct(self, default: float = 45.0) -> float:
+        """Safely retrieve the max adjustment percentage without crashing on empty or invalid entry."""
+        try:
+            raw = str(self.var_pct.get()).strip()
+            if not raw:
+                return default
+            val = float(raw)
+            return val if 0.0 < val <= 100.0 else default
+        except Exception:
+            return default
+
     def update_controllability_check(self):
         if not self.analysis_cache or not self.spin_axis:
             return
 
-        pct = self.var_pct.get()
+        try:
+            raw = str(self.var_pct.get()).strip()
+            if not raw:
+                return
+            pct = float(raw)
+            if pct <= 0.0:
+                return
+        except Exception:
+            return
         ticked_indices = [i for i, (_, var) in enumerate(self.dim_vars) if var.get() == 1]
         if not ticked_indices:
             self.lbl_verdict.config(text="Tick dimensions to adjust.", foreground="#4a5568")
@@ -693,7 +712,7 @@ class BalancerApp(tk.Tk):
     def on_select_all_usable(self):
         if not self.analysis_cache:
             return
-        pct = self.var_pct.get()
+        pct = self.get_max_pct()
         rates = rate_dimensions(self.analysis_cache['per_pct'], self.analysis_cache['r0'], pct, self.analysis_cache['dead'])
         for i, (_, var) in enumerate(self.dim_vars):
             if rates[i]['kind'] == 'ok' and rates[i]['share'] >= 0.15:
@@ -721,7 +740,7 @@ class BalancerApp(tk.Tk):
 
         free_dims = [t[0] for t in ticked]
         free_indices = [t[1] for t in ticked]
-        pct = self.var_pct.get()
+        pct = self.get_max_pct()
 
         # Save Undo state
         self.undo_state = {d.name: (d, d.get_current_value()) for d in free_dims}
