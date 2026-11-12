@@ -24,8 +24,8 @@ class WeaponGeometry:
     - Tooth & Gullet Shape: r_tooth, angle_tooth, r_waist, dia_relief, fillet_r
     - Bite h: governed by tooth radial drop relative to counterweight (r_counter)
     - Spin Axis Inertia (Izz): governed by overall mass distribution about shaft bore
-    - Hub Option B: Straight through-bore for dual pressed bearings and floating spacer sleeve
-    - Physical Constraints: Max R = 63.0 mm, Target Mass = 1.500 kg, 2 kJ Energy Target
+    - Central Bore: 22.0 mm diameter through-bore
+    - Physical Constraints: Max R = 72.0 mm, Target Mass = 1.500 kg, 2 kJ Energy Target
     """
     # 1. Tooth & Gullet Geometry (Max R = 72.0 mm / Ø144 mm envelope, Reinforced Neck)
     r_tooth: float = 72.0         # mm (outer impact tooth radius, Ø144 mm envelope)
@@ -38,8 +38,8 @@ class WeaponGeometry:
     r_counter: float = 60.0       # mm (counterweight lobe radius, physical bite h = 12.0 mm)
     angle_counter: float = 83.8   # deg (counterweight arc angle)
 
-    # 3. Spin Axis & Shaft Bore (Option B: Straight Through-Bore)
-    dia_bore: float = 22.0        # mm (straight through-bore for 22mm OD bearings e.g. 608)
+    # 3. Spin Axis & Central Bore (22.0 mm straight through-bore)
+    dia_bore: float = 22.0        # mm (straight through-bore, 22mm diameter)
     thickness: float = 30.61      # mm (sets mass to exactly 1.500 kg for reinforced R=72mm profile)
     density: float = 0.00785      # g/mm³ (7.85 g/cm³ for Hardox 450 / 500)
 
@@ -344,49 +344,11 @@ class WeaponGeometry:
         self.thickness = target_mass_g / (self.density * area_mm2)
         return self.thickness
 
-    def build_bearing_spacer(
-        self,
-        bearing_width: float = 7.0,
-        shaft_dia: float = 8.0,
-        spacer_wall: float = 2.5
-    ) -> Part:
-        """
-        Construct matching internal floating bearing spacer sleeve for Option B.
-        Length spans between the two pressed bearings across total plate thickness.
-        """
-        spacer_len = self.thickness - (2.0 * bearing_width)
-        if spacer_len <= 1.0:
-            raise ValueError(f"Plate thickness ({self.thickness:.1f} mm) too thin for dual {bearing_width} mm bearings")
-
-        inner_r = (shaft_dia + 0.3) / 2.0  # slight clearance for shaft bolt
-        outer_r = inner_r + spacer_wall    # contacts bearing inner race only
-
-        with BuildPart() as sp:
-            with BuildSketch():
-                Circle(radius=outer_r)
-                Circle(radius=inner_r, mode=Mode.SUBTRACT)
-            extrude(amount=spacer_len)
-
-        return sp.part
-
-    def export(self, prefix: str = "weapon_disc", include_spacer: bool = True):
-        """Export STEP and STL files for the disc and Option B bearing spacer."""
+    def export(self, prefix: str = "weapon_disc"):
+        """Export STEP and STL files for the disc (manual invocation only)."""
         part = self.build()
         step_path = f"{prefix}.step"
         stl_path = f"{prefix}.stl"
         export_step(part, step_path)
         export_stl(part, stl_path)
-
-        exports = [step_path, stl_path]
-        if include_spacer and self.thickness > 15.0:
-            try:
-                spacer = self.build_bearing_spacer()
-                sp_step = f"{prefix}_bearing_spacer.step"
-                sp_stl = f"{prefix}_bearing_spacer.stl"
-                export_step(spacer, sp_step)
-                export_stl(spacer, sp_stl)
-                exports.extend([sp_step, sp_stl])
-            except Exception:
-                pass
-
-        return tuple(exports)
+        return (step_path, stl_path)

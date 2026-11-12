@@ -4,15 +4,16 @@ Unit tests for the standalone python_balancer package.
 
 from python_balancer.model import WeaponGeometry
 from python_balancer.optimizer import balance_for_bite, pareto_bite_vs_inertia
+from python_balancer.visualizer import plot_weapon_profile
 
 
-def test_weapon_geometry_option_b():
+def test_weapon_geometry_profile():
     geom = WeaponGeometry(dia_bore=22.0)
     part = geom.build()
     assert part is not None
     assert part.volume > 0
 
-    # Test Option B hub specs (Max R = 72 mm / Ø144 mm)
+    # Test profile geometry and straight bore (Max R = 72 mm / Ø144 mm)
     assert geom.r_tooth == 72.0
     assert geom.dia_bore == 22.0
     assert (geom.dia_relief - geom.dia_bore) / 2.0 == 14.0  # 14 mm solid wall
@@ -22,10 +23,15 @@ def test_weapon_geometry_option_b():
     assert geom.rake_angle_deg < 0.0  # Negative rake angle for compressive impact loading
     assert geom.wedge_angle_deg > 90.0  # Obtuse included wedge angle prevents tip chipping
 
-    # Test bearing spacer creation
-    spacer = geom.build_bearing_spacer(bearing_width=7.0, shaft_dia=8.0)
-    assert spacer is not None
-    assert spacer.volume > 0
+    # Verify bearing spacer generation is removed
+    assert not hasattr(geom, "build_bearing_spacer")
+
+
+def test_visualizer_generation(tmp_path):
+    geom = WeaponGeometry(dia_bore=22.0)
+    out_file = str(tmp_path / "test_profile.png")
+    generated = plot_weapon_profile(geom, output_path=out_file)
+    assert generated == out_file
 
 
 def test_balance_for_bite_with_mass_target():

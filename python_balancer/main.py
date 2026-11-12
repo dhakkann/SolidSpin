@@ -10,6 +10,7 @@ import argparse
 import sys
 from .model import WeaponGeometry
 from .optimizer import balance_for_bite, pareto_bite_vs_inertia
+from .visualizer import plot_weapon_profile
 
 
 def print_banner():
@@ -20,7 +21,7 @@ def print_banner():
 """)
 
 
-def run_balance_demo(target_bite: float = 12.0, target_mass: float = 1500.0):
+def run_balance_demo(target_bite: float = 12.0, target_mass: float = 1500.0, export_cad: bool = False, image_path: str = "weapon_profile.png"):
     print_banner()
     geom = WeaponGeometry()
 
@@ -34,11 +35,10 @@ def run_balance_demo(target_bite: float = 12.0, target_mass: float = 1500.0):
     print(f"    Gullet Root Fillet:    R{geom.fillet_r:.1f} mm (reduces peak impact stress)")
     print(f"    Waist Relief Radius:   R{geom.r_waist:.1f} mm")
 
-    print("\n[2] HUB CONFIGURATION (Option B - Straight Through-Bore):")
-    print(f"    Bore Diameter:         Ø{geom.dia_bore:.1f} mm (straight through-bore for 22mm OD bearings e.g. 608/6900)")
-    print(f"    Hub Outer Diameter:    Ø{geom.dia_relief:.1f} mm")
+    print("\n[2] CENTRAL BORE & HUB CORE:")
+    print(f"    Bore Diameter:         Ø{geom.dia_bore:.1f} mm (straight through-bore)")
+    print(f"    Hub Core Diameter:     Ø{geom.dia_relief:.1f} mm (stress-relief root transition)")
     print(f"    Radial Hub Wall:       {(geom.dia_relief - geom.dia_bore)/2.0:.1f} mm (solid steel hoop strength)")
-    print("    Bearing Arrangement:   Dual 608-2RS bearings (7mm width each) with internal floating spacer")
 
     print("\n[3] BITE h & SPEED ENVELOPE:")
     print(f"    Target Physical Bite:  h = {target_bite:.2f} mm (Tooth step R_tooth - R_counter)")
@@ -69,10 +69,19 @@ def run_balance_demo(target_bite: float = 12.0, target_mass: float = 1500.0):
     print(f"    Gyro Momentum @ 2 kJ (H):  {h_gyro:.2f} N·m·s (Robot turns up to {yaw_lift:.2f} rev/s before wheel lift!)")
     print(f"    Remaining COM Offset:      {report['com_offset_mm']:.6f} mm (< 1 µm)")
 
-    exports = balanced.export("weapon_2kj_R72mm_reinforced")
-    print(f"\n[+] Exported CAD Models:")
-    for f in exports:
-        print(f"    • {f}")
+    # 1. Always generate high-res profile schematic image for user review
+    img_file = plot_weapon_profile(balanced, output_path=image_path, metrics=mp_11_7k)
+    print(f"\n[+] Generated 2D profile technical drawing: {img_file}")
+
+    # 2. Only export CAD if explicitly requested
+    if export_cad:
+        exports = balanced.export("weapon_2kj_R72mm_reinforced")
+        print(f"\n[+] Exported CAD Models:")
+        for f in exports:
+            print(f"    • {f}")
+    else:
+        print("    [!] CAD Export is currently DISABLED (Profile review mode).")
+        print("        Inspect the generated profile picture first. To export CAD later, pass --export.")
 
 
 def run_pareto_demo():
@@ -113,12 +122,14 @@ def main():
     parser = argparse.ArgumentParser(description="SolidSpin Combat Robotics Optimizer")
     parser.add_argument("--bite", type=float, default=12.0, help="Target physical Bite h in mm (default: 12.0, R=72mm reinforced neck)")
     parser.add_argument("--pareto", action="store_true", help="Generate Bite h vs Spin Axis Inertia Pareto curve")
+    parser.add_argument("--export", action="store_true", help="Export STEP/STL CAD models (disabled by default; generate profile picture only)")
+    parser.add_argument("--image", type=str, default="weapon_profile.png", help="Output path for 2D profile image (default: weapon_profile.png)")
     args = parser.parse_args()
 
     if args.pareto:
         run_pareto_demo()
     else:
-        run_balance_demo(target_bite=args.bite)
+        run_balance_demo(target_bite=args.bite, export_cad=args.export, image_path=args.image)
 
 
 if __name__ == "__main__":
