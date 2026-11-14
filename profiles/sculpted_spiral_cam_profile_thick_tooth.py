@@ -41,14 +41,14 @@ class SculptedSpiralGeometry:
     upper_relief_r: float = 26.00    # Upper-right inward-curving relief arc radius
     lower_hook_r: float = 22.00      # Bottom-left backward-curving hook arc radius
 
-    # Free parameters:
+    # Free balancing parameters (Default: True 2D Balanced State COM = 0.0000, 0.0000 mm):
     deg_right_spiral: float = 328.00 # Tooth trailing edge wrap angle (328° = thick tooth matching SolidWorks)
-    balance_param: float = 221.3731  # CW outer spiral wrap termination angle (deg)
-    bot_arc_sagitta: float = 0.00    # 0.0 for straight bottom line; >0 for 2D balance
+    balance_param: float = 210.1343  # CW outer spiral wrap termination angle (deg)
+    bot_arc_sagitta: float = 5.5269  # Arched bottom relief sagitta yielding exact 2D zero-unbalance
 
     align_tooth_to_plus_y: bool = False  # False = native SolidWorks frame; True = combat spinner (+Y)
     density: float = 0.00785         # Steel density (g/mm³) - EN24 / 4340
-    thickness: float = 44.17         # Auto-sized to hit 1500 g target mass (for Ø22 bore)
+    thickness: float = 47.77         # Auto-sized to hit 1500 g target mass (for Ø22 bore)
 
     def _spiral_r(self, t: float) -> float:
         """Archimedean spiral radius R(t) = R_inner + (R_outer - R_inner) * (t / 2*pi)."""
