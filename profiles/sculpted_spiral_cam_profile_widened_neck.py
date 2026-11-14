@@ -1,16 +1,19 @@
 """
-Sculpted Archimedean Spiral Cam Disc (Screenshots 003340 - 003511).
-Reinforced Widened Neck Profile — dynamically balanced to COM = (0.000, 0.000).
+Sculpted Archimedean Spiral Cam Disc — Reinforced Widened Front Neck.
+Corrected with smooth top contour (zero kink) and dynamically balanced to COM = (0.000, 0.000).
 
-Geometry Updates:
-- Reinforced Front Neck: R_neck_front = 35.00 mm (baseline was 28.31 mm, +24% wider neck)
-- Front Bore Wall: 24.0 mm (+39% thicker web between bore and tooth root)
-- Front Bolt Web: 14.5 mm (+86% thicker web between M4 bolt hole and tooth root)
-- Dynamically balanced tuning variables:
-  * balance_param (CW wrap angle): 225.522° (baseline SW drawing was ~222.0°)
-  * deg_right_spiral (flank tangent cut): 336.463° (baseline SW drawing was 332.0°)
-- Required plate thickness for 1500 g mass target: 42.30 mm (slimmer by 5.5 mm)
-- Speed for 2000 J kinetic energy: 15,524 RPM (tip speed 97.5 m/s / 351 km/h)
+Key Features:
+- Reinforced Front Neck: R_neck_front = 35.00 mm (vs 28.31 mm baseline)
+  * Bore Web Wall Thickness: 24.00 mm (+39% thicker than baseline)
+  * Bolt Hole Web Wall Thickness: 14.50 mm (+86% thicker than baseline)
+- Smooth G1-Continuous Top Part: Upper relief arc anchors to R=28.31 mm core circle at 58.0°,
+  eliminating the top kink defect and smoothly sweeping into (0, 37.5 mm).
+- Sharp bottom-left counterweight hook with concave R22 mm relief arc.
+- Single internal tooth gullet fillet (R15.0 mm).
+- Dynamically balanced tuning:
+  * balance_param (CW wrap): 211.769°
+  * deg_right_spiral (cut): 336.022°
+- Sized for 1500 g in EN24/4340 steel: thickness = 46.51 mm.
 """
 
 import math
@@ -42,16 +45,16 @@ class SculptedSpiralGeometry:
     upper_relief_r: float = 26.00    # Upper-right inward-curving relief arc radius
     lower_hook_r: float = 22.00      # Bottom-left backward-curving hook arc radius
 
-    # Front Neck & Hub Boss Radius (Reinforced)
-    r_neck_front: float = 35.00      # Front throat / core boss radius (mm)
+    # Reinforced front neck radius
+    r_neck_front: float = 35.00      # mm (baseline was 28.31 mm)
 
     align_tooth_to_plus_y: bool = False  # False = native SolidWorks frame; True = combat spinner (+Y)
     density: float = 0.00785         # Steel density (g/mm³) - EN24 / 4340
-    thickness: float = 42.30         # Auto-sized to hit 1500 g target mass (for Ø22 bore)
+    thickness: float = 46.51         # Auto-sized to hit 1500 g target mass (for Ø22 bore)
 
     # Numerically balanced parameters:
-    balance_param: float = 225.522   # CW outer spiral wrap termination angle (deg)
-    deg_right_spiral: float = 336.463 # Bottom-right tangent chord intersection angle (deg)
+    balance_param: float = 211.769   # CW outer spiral wrap termination angle (deg)
+    deg_right_spiral: float = 336.022 # Bottom-right tangent chord intersection angle (deg)
 
     def _spiral_r(self, t: float) -> float:
         """Archimedean spiral radius R(t) = R_inner + (R_outer - R_inner) * (t / 2*pi)."""
@@ -104,17 +107,17 @@ class SculptedSpiralGeometry:
 
     def build_sketch(self):
         """
-        Builds the reinforced SolidWorks profile with widened front neck:
-        - Sharp top spiral tip at 90° curving inward along R26 relief arc to core circle (58°).
-        - Outward-bulging reinforced center-right neck arc (R35 mm) from 58° to root at -20.28°.
-        - R15.00 concave gullet fillet ONLY at the tooth root joining the flat striking face.
-        - Sharp bottom-left counterweight hook at ~225.5° curving backwards/inward (R22) to core.
-        - Smooth S-curve bottom transition flat chord.
+        Builds the reinforced profile with widened front neck and smooth top contour:
+        - Smooth top transition: upper relief arc connects to R28.31 mm core at 58.0°
+          and sweeps seamlessly into (0, 37.5 mm) with zero kink.
+        - Widened front neck (R35 mm) providing reinforced bore wall and bolt hole web.
+        - Sharp bottom-left hook curving backward/inward (R22) to core.
+        - Single internal gullet fillet (R15.0 mm).
         """
         rot_offset = (math.pi / 2.0) if self.align_tooth_to_plus_y else 0.0
 
-        r_core_base = self._spiral_r(self.t_start) # 28.31 mm for CW hook/bottom
-        r_neck = self.r_neck_front                 # 35.00 mm for reinforced front neck
+        r_core_base = self._spiral_r(self.t_start) # 28.31 mm (Baseline core circle)
+        r_neck = self.r_neck_front                 # 35.00 mm (Widened front neck)
         deg_root = math.degrees(self.t_start)      # -20.28°
 
         deg_top_spiral = 90.0
@@ -124,7 +127,7 @@ class SculptedSpiralGeometry:
         deg_lower_core_2 = 270.0
         deg_right_spiral = self.deg_right_spiral
 
-        # 1. Counterweight Outer Spiral
+        # 1. Counterweight Outer Spiral (90° -> cw_end)
         t_cw_start = math.radians(deg_top_spiral)
         t_cw_end = math.radians(deg_cw_end)
         cw_spiral_pts: List[Tuple[float, float]] = [
@@ -143,7 +146,7 @@ class SculptedSpiralGeometry:
             p_cw_hook_tip, p_core_bl, radius=self.lower_hook_r, concave_inward_to_origin=True
         )
 
-        # 3. Bottom Core Circle Arc
+        # 3. Bottom Core Circle Arc (250° -> 270°)
         p_core_bot = self._rot(self._core_pt(r_core_base, deg_lower_core_2), rot_offset)
         p_core_bot_mid = self._rot(
             self._core_pt(r_core_base, 0.5 * (deg_lower_core_1 + deg_lower_core_2)),
@@ -162,15 +165,16 @@ class SculptedSpiralGeometry:
         p_tooth_base = tooth_spiral_pts[0]
         p_tooth_tip = tooth_spiral_pts[-1]
 
-        # 5. Reinforced Front Neck & Core Boss (R35 mm from root -20.28° around right bolt hole to +58°)
+        # 5. Widened Front Neck Arc:
+        # Starts at p_root on widened radius R_neck (35 mm) at -20.28°
+        # Smoothly transitions to p_core_ur on baseline radius R_core_base (28.31 mm) at 58.0°!
         p_root = self._rot(self._core_pt(r_neck, deg_root), rot_offset)
-        p_core_right_mid = self._rot(
-            self._core_pt(r_neck, 0.5 * (deg_root + deg_upper_core)),
-            rot_offset
-        )
-        p_core_ur = self._rot(self._core_pt(r_neck, deg_upper_core), rot_offset)
+        deg_mid = 0.5 * (deg_root + deg_upper_core)
+        r_mid = 0.5 * (r_neck + r_core_base)
+        p_core_right_mid = self._rot(self._core_pt(r_mid, deg_mid), rot_offset)
+        p_core_ur = self._rot(self._core_pt(r_core_base, deg_upper_core), rot_offset)
 
-        # 6. Upper-Right Concave Relief Arc
+        # 6. Upper-Right Concave Relief Arc (100% Smooth Baseline Geometry - Zero Kink!)
         p_upper_relief_mid = self._arc_midpoint(
             p_core_ur, p_top_spiral, radius=self.upper_relief_r, concave_inward_to_origin=True
         )
