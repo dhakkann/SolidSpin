@@ -61,16 +61,16 @@ class SW_R60_Geometry:
     dia_bore: float = 22.00       # Central shaft bore Ø22.00 mm (2x HK1616)
     dia_hub: float = 50.00        # Central hub core Ø50.00 mm (R = 25.0 mm)
     r_tooth: float = 60.00        # Outer tooth radius R60.00 mm (Ø120 mm sweep)
-    r_waist: float = 56.302       # Concave waist radius R56.30 mm (max-wide bell)
-    r_transition: float = 21.09   # Transition fillet radius R21.09 mm
+    r_waist: float = 61.52        # Concave waist radius R61.52 mm (25.51 mm stem neck)
+    r_transition: float = 25.00   # Transition fillet radius R25.00 mm
 
-    x_tooth: float = 11.000       # Tooth tip half-width (11.00 mm -> 22.00 mm chord)
-    x_counter: float = 39.500     # Counterweight half-span (39.50 mm)
-    r_apex: float = 39.782        # Counterweight apex radius (h = 60.0 - 39.782 = 20.218 mm)
-    yc_center: float = 12.000     # Counterweight arc center offset (+12.0 mm) to balance wider neck
+    x_tooth: float = 14.340       # Tooth tip half-width (14.34 mm -> 28.68 mm full heavy tooth chord)
+    x_counter: float = 50.000     # Counterweight half-span (50.00 mm -> 100.0 mm span on counter side)
+    r_apex: float = 39.782        # Counterweight apex radius (h = 60.0 - 39.782 = 20.218 mm speed bite)
+    yc_center: float = 23.810     # Counterweight arc center offset (+23.81 mm) for sub-micron balance
 
     density: float = 0.00785      # g/mm³ (7.85 g/cm³ steel)
-    thickness: float = 52.32      # mm (sized to hit 1500 g target mass)
+    thickness: float = 44.28      # mm (sized to hit 1500.0 g target mass)
 
     @property
     def r_counter_arc(self) -> float:
@@ -81,16 +81,59 @@ class SW_R60_Geometry:
         return self.r_apex
 
     @classmethod
-    def max_wide_bell(cls) -> "SW_R60_Geometry":
+    def ultra_wide_bell(cls) -> "SW_R60_Geometry":
         """
-        Optimal SolidWorks Bell profile pushed to maximum neck width:
-        - Speed-bite equilibrium (h = 20.22 mm)
-        - Strict mathematical G1 tangency at hub (0.00° kink)
-        - Clean 17.0 mm exposed hub arc (no pinching)
-        - Maximized neck width of 19.33 mm
-        - Dynamic balance COM = (0.000, 0.000) mm
+        Ultra-Wide SolidWorks Bell profile with Full Heavy Tooth & Expanded Counter Flanks:
+        - Tooth tip chord: 28.68 mm (full heavy tooth from original SW sketch)
+        - Stem neck width: 25.51 mm (maximum neck section modulus and shear resistance)
+        - Speed-bite throat: h = 20.22 mm (r_apex = 39.782 mm, matching 12 mph closing speed)
+        - Counterweight flank: xc = 50.0 mm (expanded lateral lobes to counterbalance heavy tooth)
+        - Strict mathematical G1 tangency at hub (0.00° kink, zero pinching)
+        - Exposed hub arc: 8.68 mm clean continuous arc
+        - Dynamic balance: COM = (0.0000, 0.0000) mm
+        - Target mass: 1500.0 g @ 44.28 mm thickness
+        - Kinetic energy: 2,000 J @ 14,995 RPM (210.8 mph tip speed < 250 mph arena limit)
         """
         return cls()
+
+    @classmethod
+    def heavy_bell_26mm(cls) -> "SW_R60_Geometry":
+        """
+        Ultra-Wide Bell variant with 26.0 mm Tooth Chord:
+        - Tooth tip chord: 26.00 mm
+        - Stem neck width: 22.51 mm
+        - Counterweight flank: xc = 46.0 mm (R_corner = 47.11 mm, > 12.8 mm clearance)
+        - Speed-bite throat: h = 20.22 mm (r_apex = 39.782 mm)
+        - Dynamic balance: COM = (0.0000, 0.0000) mm
+        - Target mass: 1500.0 g @ 46.43 mm thickness
+        """
+        return cls(
+            r_waist=55.00,
+            r_transition=20.00,
+            x_tooth=13.00,
+            x_counter=46.00,
+            r_apex=39.782,
+            yc_center=10.74,
+            thickness=46.43
+        )
+
+    @classmethod
+    def max_wide_bell(cls) -> "SW_R60_Geometry":
+        """
+        19.33 mm neck width variant with 22.0 mm chord:
+        - Speed-bite equilibrium (h = 20.22 mm)
+        - Neck width of 19.33 mm
+        - Dynamic balance COM = (0.000, 0.000) mm
+        """
+        return cls(
+            r_waist=56.302,
+            r_transition=21.09,
+            x_tooth=11.00,
+            x_counter=39.50,
+            r_apex=39.782,
+            yc_center=12.00,
+            thickness=52.32
+        )
 
     @classmethod
     def clean_concentric_bell(cls) -> "SW_R60_Geometry":
