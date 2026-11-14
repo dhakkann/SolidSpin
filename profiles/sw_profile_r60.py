@@ -81,6 +81,121 @@ class SW_R60_Geometry:
         return self.r_apex
 
     @classmethod
+    def positive_rake_max_hook(cls) -> "SW_R60_Geometry":
+        """
+        Maximum Hook & Positive Rake Single-Tooth Disc (Option C):
+        - Tooth tip chord: 32.00 mm (Aggressive hooked head)
+        - Stem neck width: 23.84 mm (Massive bending strength)
+        - Tooth-to-neck difference: ΔW = 8.16 mm (Overhang = 4.08 mm per side, 3.7x more hook)
+        - Rake angle: +49.1° (Superior grabbing & scooping under opponent armor)
+        - Flank clearance margin: +1.22 mm (ZERO bite eaten at 12 mph approach speed)
+        - Dynamic balance: COM = (0.0000, 0.0000) mm
+        - Target mass: 1500.0 g @ 47.67 mm thickness
+        - Kinetic energy: 2,000 J @ 15,213 RPM (213.8 mph tip speed < 250 mph limit)
+        """
+        return cls(
+            r_waist=42.00,
+            r_transition=25.00,
+            x_tooth=16.00,
+            x_counter=39.00,
+            r_apex=43.00,
+            yc_center=2.49,
+            thickness=47.67
+        )
+
+    @classmethod
+    def positive_rake_aggressive_hook(cls) -> "SW_R60_Geometry":
+        """
+        Balanced Aggressive Hook Single-Tooth Disc (Option B):
+        - Tooth tip chord: 30.00 mm
+        - Stem neck width: 23.33 mm
+        - Tooth-to-neck difference: ΔW = 6.67 mm (Overhang = 3.33 mm per side, 3.1x more hook)
+        - Rake angle: +53.0°
+        - Flank clearance margin: +1.29 mm (ZERO bite eaten at 12 mph approach speed)
+        - Dynamic balance: COM = (0.0000, 0.0000) mm
+        - Target mass: 1500.0 g @ 48.30 mm thickness
+        - Kinetic energy: 2,000 J @ 15,335 RPM (215.5 mph tip speed < 250 mph limit)
+        """
+        return cls(
+            r_waist=45.00,
+            r_transition=25.00,
+            x_tooth=15.00,
+            x_counter=39.00,
+            r_apex=42.50,
+            yc_center=3.33,
+            thickness=48.30
+        )
+
+    @classmethod
+    def positive_rake_sw_heavy(cls) -> "SW_R60_Geometry":
+        """
+        Original SolidWorks Heavy Tooth with Positive Hook (Option A):
+        - Tooth tip chord: 28.68 mm (Exact original SW tooth chord)
+        - Stem neck width: 23.59 mm
+        - Tooth-to-neck difference: ΔW = 5.09 mm (Overhang = 2.55 mm per side, 2.3x more hook)
+        - Rake angle: +57.8°
+        - Flank clearance margin: +1.39 mm (ZERO bite eaten at 12 mph approach speed)
+        - Dynamic balance: COM = (0.0000, 0.0000) mm
+        - Target mass: 1500.0 g @ 48.19 mm thickness
+        - Kinetic energy: 2,000 J @ 15,369 RPM (216.0 mph tip speed < 250 mph limit)
+        """
+        return cls(
+            r_waist=50.00,
+            r_transition=25.00,
+            x_tooth=14.34,
+            x_counter=39.00,
+            r_apex=42.50,
+            yc_center=3.01,
+            thickness=48.19
+        )
+
+    @classmethod
+    def max_neck_width_bell(cls) -> "SW_R60_Geometry":
+        """
+        Absolute Maximum Neck Width Single-Tooth Disc (Option D):
+        - Stem neck width: 25.51 mm (Peak structural width in design space)
+        - Tooth tip chord: 30.00 mm
+        - Tooth-to-neck difference: ΔW = 4.49 mm (Overhang = 2.25 mm per side)
+        - Flank clearance margin: +0.27 mm (Zero bite eaten)
+        - Dynamic balance: COM = (0.0000, 0.0000) mm
+        - Target mass: 1500.0 g @ 47.02 mm thickness
+        - Kinetic energy: 2,000 J @ 15,141 RPM (212.8 mph tip speed < 250 mph limit)
+        """
+        return cls(
+            r_waist=55.00,
+            r_transition=25.00,
+            x_tooth=15.00,
+            x_counter=39.00,
+            r_apex=43.50,
+            yc_center=4.09,
+            thickness=47.02
+        )
+
+    @classmethod
+    def archimedean_safe_wide_neck(cls) -> "SW_R60_Geometry":
+        """
+        Optimal Archimedean-Safe Bell Profile with Maximized Neck Width:
+        - Stem neck width: 23.83 mm (+21.8% wider neck with massive section modulus)
+        - Tooth tip chord: 26.00 mm (heavy impact tooth)
+        - Flank half-span: xc = 39.00 mm (R_corner = 44.38 mm, strictly inside Archimedean spiral)
+        - Clearance margin: +1.10 mm (ZERO bite eaten! Full dynamic bite preserved)
+        - Apex step throat: h = 17.50 mm (r_apex = 42.50 mm, well above 10.73 mm half-turn penetration)
+        - Exposed cylindrical hub arc: 13.01 mm with strict 0.000° G1 tangency
+        - Dynamic balance: COM = (0.0000, 0.0000) mm
+        - Target mass: 1500.0 g @ 48.09 mm thickness
+        - Kinetic energy: 2,000 J @ 15,416 RPM (216.7 mph tip speed < 250 mph limit)
+        """
+        return cls(
+            r_waist=65.00,
+            r_transition=25.00,
+            x_tooth=13.00,
+            x_counter=39.00,
+            r_apex=42.50,
+            yc_center=3.83,
+            thickness=48.09
+        )
+
+    @classmethod
     def archimedean_safe_bell(cls) -> "SW_R60_Geometry":
         """
         Archimedean Spiral-Verified Safe Bell Profile:
