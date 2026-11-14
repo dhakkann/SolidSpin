@@ -1,16 +1,17 @@
 """
 Sculpted Archimedean Spiral Cam Disc (Screenshots 003340 - 003511).
-Reinforced Widened Neck Profile — dynamically balanced to COM = (0.000, 0.000).
+Corrected & dynamically balanced to COM = (0.000, 0.000) via dual-variable tuning:
+- balance_param (counterweight wrap angle): 207.910° (initial drawing was 222.0°)
+- deg_right_spiral (flank tangent angle): 335.421° (initial drawing was 332.0°)
 
-Geometry Updates:
-- Reinforced Front Neck: R_neck_front = 35.00 mm (baseline was 28.31 mm, +24% wider neck)
-- Front Bore Wall: 24.0 mm (+39% thicker web between bore and tooth root)
-- Front Bolt Web: 14.5 mm (+86% thicker web between M4 bolt hole and tooth root)
-- Dynamically balanced tuning variables:
-  * balance_param (CW wrap angle): 225.522° (baseline SW drawing was ~222.0°)
-  * deg_right_spiral (flank tangent cut): 336.463° (baseline SW drawing was 332.0°)
-- Required plate thickness for 1500 g mass target: 42.30 mm (slimmer by 5.5 mm)
-- Speed for 2000 J kinetic energy: 15,524 RPM (tip speed 97.5 m/s / 351 km/h)
+Features:
+- SolidWorks native Archimedean spiral cam envelope R(t) = 30 + 30*(t / 2*pi)
+- Smooth backward-curving concave relief arc (R22) at counterweight tip (sharp hook, no fillet)
+- Outward-bulging center-right hub core circle (root -20.28° -> +58°)
+- Smooth inward-curving relief arc (R26) connecting upper core to top spiral tip
+- Single internal gullet fillet (R15.0 mm) at the tooth root joining the flat striking face
+- Straight through-bore (Ø22.0 mm or Ø24.0 mm)
+- 3x Ø4.0 mm mounting holes on Ø37.0 mm bolt circle (PCD R18.5 mm)
 """
 
 import math
@@ -38,20 +39,19 @@ class SculptedSpiralGeometry:
     bolt_circle_r: float = 18.50     # R18.50 mm (Ø37.00 mm bolt circle)
 
     # Gullet & relief sculpting radii (Screenshots 003407 & 003340)
-    gullet_fillet_r: float = 15.00   # Concave gullet root fillet at tooth base
+    gullet_fillet_r: float = 15.00   # ONLY fillet: concave gullet root at tooth base
     upper_relief_r: float = 26.00    # Upper-right inward-curving relief arc radius
     lower_hook_r: float = 22.00      # Bottom-left backward-curving hook arc radius
 
-    # Front Neck & Hub Boss Radius (Reinforced)
-    r_neck_front: float = 35.00      # Front throat / core boss radius (mm)
-
     align_tooth_to_plus_y: bool = False  # False = native SolidWorks frame; True = combat spinner (+Y)
     density: float = 0.00785         # Steel density (g/mm³) - EN24 / 4340
-    thickness: float = 42.30         # Auto-sized to hit 1500 g target mass (for Ø22 bore)
+    thickness: float = 47.82         # Auto-sized to hit 1500 g target mass (for Ø22 bore)
 
     # Numerically balanced parameters:
-    balance_param: float = 225.522   # CW outer spiral wrap termination angle (deg)
-    deg_right_spiral: float = 336.463 # Bottom-right tangent chord intersection angle (deg)
+    # 1. Counterweight outer spiral wrap termination angle (degrees)
+    balance_param: float = 207.9095   # Initial SW drawing was 222.0°
+    # 2. Bottom-right tangent chord intersection on outer spiral (degrees)
+    deg_right_spiral: float = 335.4211 # Initial SW drawing was 332.0°
 
     def _spiral_r(self, t: float) -> float:
         """Archimedean spiral radius R(t) = R_inner + (R_outer - R_inner) * (t / 2*pi)."""
@@ -63,7 +63,7 @@ class SculptedSpiralGeometry:
         return (r * math.cos(t), r * math.sin(t))
 
     def _core_pt(self, r_core: float, deg: float) -> Tuple[float, float]:
-        """Evaluate (x, y) on a core circle of radius r_core."""
+        """Evaluate (x, y) on the inner hub core circle of radius r_core."""
         rad = math.radians(deg)
         return (r_core * math.cos(rad), r_core * math.sin(rad))
 
@@ -104,27 +104,26 @@ class SculptedSpiralGeometry:
 
     def build_sketch(self):
         """
-        Builds the reinforced SolidWorks profile with widened front neck:
+        Builds the exact SolidWorks profile (Screenshots 003340 - 003511):
         - Sharp top spiral tip at 90° curving inward along R26 relief arc to core circle (58°).
-        - Outward-bulging reinforced center-right neck arc (R35 mm) from 58° to root at -20.28°.
+        - Outward-bulging center-right hub core circle (58° down to tooth root at -20.28°).
         - R15.00 concave gullet fillet ONLY at the tooth root joining the flat striking face.
-        - Sharp bottom-left counterweight hook at ~225.5° curving backwards/inward (R22) to core.
+        - Sharp bottom-left counterweight hook that curves backwards/inward (R22) to core.
         - Smooth S-curve bottom transition flat chord.
         """
         rot_offset = (math.pi / 2.0) if self.align_tooth_to_plus_y else 0.0
 
-        r_core_base = self._spiral_r(self.t_start) # 28.31 mm for CW hook/bottom
-        r_neck = self.r_neck_front                 # 35.00 mm for reinforced front neck
+        r_core = self._spiral_r(self.t_start)      # 28.31 mm (Ø56.62 mm)
         deg_root = math.degrees(self.t_start)      # -20.28°
 
-        deg_top_spiral = 90.0
-        deg_upper_core = 58.0
-        deg_cw_end = self.balance_param
-        deg_lower_core_1 = deg_cw_end + 28.0
-        deg_lower_core_2 = 270.0
-        deg_right_spiral = self.deg_right_spiral
+        deg_top_spiral = 90.0                      # Top sharp tip of spiral
+        deg_upper_core = 58.0                      # Tangent touch on upper-right core circle
+        deg_cw_end = self.balance_param            # Sharp bottom-left hook tip (~207.91°)
+        deg_lower_core_1 = deg_cw_end + 28.0       # Tangent touch on bottom-left core circle (~235.91°)
+        deg_lower_core_2 = 270.0                   # Bottom-most tangent point on core circle (270°)
+        deg_right_spiral = self.deg_right_spiral   # Bottom-right corner where flat meets tooth flank (~335.42°)
 
-        # 1. Counterweight Outer Spiral
+        # 1. Counterweight Outer Spiral (90° top tip CCW around left to hook tip)
         t_cw_start = math.radians(deg_top_spiral)
         t_cw_end = math.radians(deg_cw_end)
         cw_spiral_pts: List[Tuple[float, float]] = [
@@ -137,20 +136,20 @@ class SculptedSpiralGeometry:
         p_top_spiral = cw_spiral_pts[0]
         p_cw_hook_tip = cw_spiral_pts[-1]
 
-        # 2. Bottom-Left Hook Relief Arc (curves BACKWARDS / concave inward)
-        p_core_bl = self._rot(self._core_pt(r_core_base, deg_lower_core_1), rot_offset)
+        # 2. Bottom-Left Hook Relief Arc (curves BACKWARDS / concave inward from hook tip to core)
+        p_core_bl = self._rot(self._core_pt(r_core, deg_lower_core_1), rot_offset)
         p_hook_mid = self._arc_midpoint(
             p_cw_hook_tip, p_core_bl, radius=self.lower_hook_r, concave_inward_to_origin=True
         )
 
-        # 3. Bottom Core Circle Arc
-        p_core_bot = self._rot(self._core_pt(r_core_base, deg_lower_core_2), rot_offset)
+        # 3. Exposed Bottom Core Circle Arc (convex outward around origin)
+        p_core_bot = self._rot(self._core_pt(r_core, deg_lower_core_2), rot_offset)
         p_core_bot_mid = self._rot(
-            self._core_pt(r_core_base, 0.5 * (deg_lower_core_1 + deg_lower_core_2)),
+            self._core_pt(r_core, 0.5 * (deg_lower_core_1 + deg_lower_core_2)),
             rot_offset
         )
 
-        # 4. Outer Tooth Spiral Flank
+        # 4. Outer Tooth Spiral Flank (from tangent corner up to 360° tooth tip)
         t_tooth_base = math.radians(deg_right_spiral)
         tooth_spiral_pts: List[Tuple[float, float]] = [
             self._rot(
@@ -162,41 +161,57 @@ class SculptedSpiralGeometry:
         p_tooth_base = tooth_spiral_pts[0]
         p_tooth_tip = tooth_spiral_pts[-1]
 
-        # 5. Reinforced Front Neck & Core Boss (R35 mm from root -20.28° around right bolt hole to +58°)
-        p_root = self._rot(self._core_pt(r_neck, deg_root), rot_offset)
+        # 5. Center-Right Hub Core Circle (from p_root at -20.28° OUTWARD around right bolt hole to +58°)
+        p_root = self._rot(self._spiral_pt(self.t_start), rot_offset)
         p_core_right_mid = self._rot(
-            self._core_pt(r_neck, 0.5 * (deg_root + deg_upper_core)),
+            self._core_pt(r_core, 0.5 * (deg_root + deg_upper_core)),
             rot_offset
         )
-        p_core_ur = self._rot(self._core_pt(r_neck, deg_upper_core), rot_offset)
+        p_core_ur = self._rot(self._core_pt(r_core, deg_upper_core), rot_offset)
 
-        # 6. Upper-Right Concave Relief Arc
+        # 6. Upper-Right Concave Relief Arc (curves INWARD from p_core_ur back to sharp p_top_spiral)
         p_upper_relief_mid = self._arc_midpoint(
             p_core_ur, p_top_spiral, radius=self.upper_relief_r, concave_inward_to_origin=True
         )
 
         with BuildSketch() as s:
             with BuildLine():
+                # 1. Outer counterweight spiral
                 Spline(*cw_spiral_pts)
+
+                # 2. Sharp backward-curving hook relief arc
                 ThreePointArc(p_cw_hook_tip, p_hook_mid, p_core_bl)
+
+                # 3. Bottom core circle segment
                 ThreePointArc(p_core_bl, p_core_bot_mid, p_core_bot)
+
+                # 4. Bottom-right tangent flat line
                 Line(p_core_bot, p_tooth_base)
+
+                # 5. Outer tooth spiral flank
                 Spline(*tooth_spiral_pts)
+
+                # 6. Flat striking tooth face
                 Line(p_tooth_tip, p_root)
+
+                # 7. Outward-extruded center-right core circle
                 ThreePointArc(p_root, p_core_right_mid, p_core_ur)
+
+                # 8. Upper-right inward-curving relief arc
                 ThreePointArc(p_core_ur, p_upper_relief_mid, p_top_spiral)
 
             make_face()
 
             # ONLY fillet the interior tooth gullet root (R15.00 mm)
+            # Leaving the counterweight hook tip, top spiral tip, and tooth tip sharp
             if self.gullet_fillet_r > 0.0:
                 root_vtx = s.vertices().sort_by_distance(p_root)[0]
                 fillet(root_vtx, radius=self.gullet_fillet_r)
 
-            # Central shaft bore
+            # Subtract central shaft bore
             Circle(radius=self.dia_bore / 2.0, mode=Mode.SUBTRACT)
 
-            # 3x Ø4.00 mm mounting holes
+            # Subtract 3x Ø4.00 mm mounting holes
             hole_start_deg = 90.0 + math.degrees(rot_offset)
             with PolarLocations(
                 radius=self.bolt_circle_r,
@@ -238,3 +253,32 @@ class SculptedSpiralGeometry:
             self.balance_param = float(res.x[0])
             self.deg_right_spiral = float(res.x[1])
         return self.evaluate_com()
+
+    def mass_properties(self, target_energy_j: float = 2000.0) -> Dict[str, Any]:
+        """Compute full dynamic, energetic, and gyroscopic properties."""
+        part = self.build()
+        vol = part.volume
+        mass_g = vol * self.density
+        mass_kg = mass_g / 1000.0
+        com = part.center()
+
+        mat = part.matrix_of_inertia
+        izz = mat[2][2] * (self.density * 1e-9)
+
+        omega = math.sqrt(2.0 * target_energy_j / izz) if izz > 0 else 0.0
+        rpm = (omega * 60.0) / (2.0 * math.pi)
+        v_tip_m_s = omega * (self.r_outer / 1000.0)
+        h_gyro = izz * omega
+
+        return {
+            "mass_g": mass_g,
+            "thickness_mm": self.thickness,
+            "com_x_mm": com.X,
+            "com_y_mm": com.Y,
+            "izz_kg_m2": izz,
+            "target_energy_j": target_energy_j,
+            "rpm_for_2000j": rpm,
+            "tip_speed_m_s": v_tip_m_s,
+            "tip_speed_km_h": v_tip_m_s * 3.6,
+            "angular_momentum_nms": h_gyro,
+        }
