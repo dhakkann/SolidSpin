@@ -56,18 +56,20 @@ class SculptedSpiralThickToothGeometry:
 
     # 3. Fortified Heavy Tooth Parameters
     tooth_tip_width: float = 0.00    # 0.00 = True Archimedean spiral tip (no flat face, no edge break)
-    deg_right_spiral: float = 335.421080 # Outer spiral wrap behind tooth (deg) - baseline flat bottom
+    flank_pitch_mult: float = 2.50   # 2.5x aggressive Archimedean spiral drop behind tooth tip
+    deg_root: float = -15.00         # Reinforced tooth root connection angle (-15° adds mass behind striking face)
+    deg_right_spiral: float = 332.161544 # Outer spiral wrap behind tooth (deg)
     gullet_fillet_r: float = 15.00   # Smooth internal root fillet (mm)
     upper_relief_r: float = 26.00    # Upper relief arc radius (mm)
     lower_hook_r: float = 22.00      # Bottom-left hook relief arc radius (mm)
 
     # 4. Archimedean-Compliant Counterweight & Balancing Parameters (COM = 0.0000, 0.0000 mm)
-    cw_end_deg: float = 207.909533   # Counterweight wrap termination angle (deg)
+    cw_end_deg: float = 206.944755   # Counterweight wrap termination angle (deg)
     sag_bot: float = 0.000000        # Straight baseline flat bottom line (sagitta = 0.0 mm)
 
     # 5. Material & Mass Sizing
     density: float = 0.00785         # Steel density (g/mm³) - EN24 / AISI 4340
-    thickness: float = 47.82         # Plate thickness (mm) for exactly 1500.0 g target mass
+    thickness: float = 47.44         # Plate thickness (mm) for exactly 1500.0 g target mass
     align_tooth_to_plus_y: bool = False  # False = native SolidWorks frame; True = combat spinner (+Y)
 
     def _spiral_r(self, t: float) -> float:
@@ -79,6 +81,17 @@ class SculptedSpiralThickToothGeometry:
         r = self._spiral_r(t)
         return (r * math.cos(t), r * math.sin(t))
 
+    def _tooth_flank_r(self, t: float) -> float:
+        """Aggressive Archimedean spiral on tooth flank pulling strictly inside standard spiral."""
+        k_std = (self.r_outer - self.r_inner) / (2.0 * math.pi)
+        k_flank = self.flank_pitch_mult * k_std
+        return self.r_outer - k_flank * (2.0 * math.pi - t)
+
+    def _tooth_flank_pt(self, t: float) -> Tuple[float, float]:
+        """Evaluate (x, y) on the aggressive Archimedean tooth flank."""
+        r = self._tooth_flank_r(t)
+        return (r * math.cos(t), r * math.sin(t))
+
     def _rot(self, pt: Tuple[float, float], rot_rad: float) -> Tuple[float, float]:
         """Rotate 2D point counter-clockwise around origin (0, 0)."""
         c, s = math.cos(rot_rad), math.sin(rot_rad)
@@ -88,8 +101,9 @@ class SculptedSpiralThickToothGeometry:
         """Constructs the solid 3D Part using build123d."""
         rot_offset = (math.pi / 2.0) if self.align_tooth_to_plus_y else 0.0
 
-        r_core_base = self._spiral_r(self.t_start) # 28.31 mm
-        deg_root = math.degrees(self.t_start)      # -20.28°
+        deg_root = self.deg_root
+        rad_root = math.radians(deg_root)
+        r_core_base = self._spiral_r(rad_root)
 
         # 1. Counterweight Outer Contour: STRICTLY along Archimedean spiral
         t_cw_start = math.radians(90.0)
@@ -132,7 +146,7 @@ class SculptedSpiralThickToothGeometry:
         t_tooth_base = math.radians(self.deg_right_spiral)
         t_tooth_tip = 2.0 * math.pi
         tooth_spiral_pts = [
-            self._rot(self._spiral_pt(t_tooth_base + (t_tooth_tip - t_tooth_base) * (i / 40.0)), rot_offset)
+            self._rot(self._tooth_flank_pt(t_tooth_base + (t_tooth_tip - t_tooth_base) * (i / 40.0)), rot_offset)
             for i in range(41)
         ]
         p_tooth_base = tooth_spiral_pts[0]
