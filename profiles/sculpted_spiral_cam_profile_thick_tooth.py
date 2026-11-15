@@ -55,19 +55,19 @@ class SculptedSpiralThickToothGeometry:
     bolt_circle_r: float = 18.50     # R18.50 mm (Ø37.00 mm bolt circle)
 
     # 3. Fortified Heavy Tooth Parameters
-    tooth_tip_width: float = 12.00   # Blunt hammer impact face width at R = 60.0 mm
-    deg_right_spiral: float = 338.833638 # Outer spiral wrap behind tooth (deg) - baseline flat bottom
+    tooth_tip_width: float = 0.00    # 0.00 = True Archimedean spiral tip (no flat face, no edge break)
+    deg_right_spiral: float = 335.421080 # Outer spiral wrap behind tooth (deg) - baseline flat bottom
     gullet_fillet_r: float = 15.00   # Smooth internal root fillet (mm)
     upper_relief_r: float = 26.00    # Upper relief arc radius (mm)
     lower_hook_r: float = 22.00      # Bottom-left hook relief arc radius (mm)
 
     # 4. Archimedean-Compliant Counterweight & Balancing Parameters (COM = 0.0000, 0.0000 mm)
-    cw_end_deg: float = 214.728206   # Counterweight wrap termination angle (deg)
+    cw_end_deg: float = 207.909533   # Counterweight wrap termination angle (deg)
     sag_bot: float = 0.000000        # Straight baseline flat bottom line (sagitta = 0.0 mm)
 
     # 5. Material & Mass Sizing
     density: float = 0.00785         # Steel density (g/mm³) - EN24 / AISI 4340
-    thickness: float = 46.34         # Plate thickness (mm) for exactly 1500.0 g target mass
+    thickness: float = 47.82         # Plate thickness (mm) for exactly 1500.0 g target mass
     align_tooth_to_plus_y: bool = False  # False = native SolidWorks frame; True = combat spinner (+Y)
 
     def _spiral_r(self, t: float) -> float:
@@ -137,16 +137,20 @@ class SculptedSpiralThickToothGeometry:
         ]
         p_tooth_base = tooth_spiral_pts[0]
 
-        # 5. Blunt Hammer Impact Tip (14.0 mm width at R = 60.0 mm)
-        half_w = self.tooth_tip_width / 2.0
-        y_tt = half_w
-        x_tt = math.sqrt(self.r_outer**2 - y_tt**2)
-        p_tip_top = self._rot((x_tt, y_tt), rot_offset)
+        # 5. Archimedean Tip or Blunt Impact Tip
+        if self.tooth_tip_width > 0.05:
+            half_w = self.tooth_tip_width / 2.0
+            y_tt = half_w
+            x_tt = math.sqrt(self.r_outer**2 - y_tt**2)
+            p_tip_top = self._rot((x_tt, y_tt), rot_offset)
 
-        y_tb = -half_w
-        x_tb = math.sqrt(self.r_outer**2 - y_tb**2)
-        p_tip_bot = self._rot((x_tb, y_tb), rot_offset)
-        tooth_spiral_pts[-1] = p_tip_bot
+            y_tb = -half_w
+            x_tb = math.sqrt(self.r_outer**2 - y_tb**2)
+            p_tip_bot = self._rot((x_tb, y_tb), rot_offset)
+            tooth_spiral_pts[-1] = p_tip_bot
+        else:
+            p_tip_top = tooth_spiral_pts[-1]
+            p_tip_bot = None
 
         # 6. Front Striking Face & Root
         rad_root = math.radians(deg_root)
@@ -195,7 +199,8 @@ class SculptedSpiralThickToothGeometry:
                 else:
                     ThreePointArc(p_core_bot, p_bot_mid, p_tooth_base)
                 Spline(*tooth_spiral_pts)
-                Line(p_tip_bot, p_tip_top)
+                if p_tip_bot is not None:
+                    Line(p_tip_bot, p_tip_top)
                 Line(p_tip_top, p_root)
                 ThreePointArc(p_root, p_core_right_mid, p_core_ur)
                 ThreePointArc(p_core_ur, p_ur_mid, p_top_spiral)
